@@ -291,6 +291,21 @@ tr:hover td{background:var(--surface-alt);}
 .fab-main svg{width:22px;height:22px;transition:.2s ease;}
 .fab-container.open .fab-main{transform:rotate(45deg);background:var(--navy);}
 @media(max-width:520px){ .fab-container{right:16px;bottom:16px;} }
+
+/* ============ BOTTOM NAV (alternative to sidebar) ============ */
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:140;display:flex;align-items:flex-end;justify-content:space-around;background:var(--surface);border-top:1px solid var(--line);padding:8px 6px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px -10px rgba(0,0,0,.15);}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:600;padding:5px 4px;flex:1;min-width:0;}
+.bn-item svg{width:21px;height:21px;}
+.bn-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.bn-item.active{color:var(--accent-d);}
+.bn-center{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;}
+.bn-center-btn{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border:4px solid var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px -6px color-mix(in srgb, var(--accent) 60%, transparent);margin-top:-26px;flex-shrink:0;}
+.bn-center-btn svg{width:22px;height:22px;}
+.bn-center span{font-size:10.5px;font-weight:700;color:var(--accent-d);}
+body.bottom-nav-mode .sidebar,body.bottom-nav-mode .hamburger,body.bottom-nav-mode .fab-container{display:none !important;}
+body.bottom-nav-mode .main{width:100%;}
+body.bottom-nav-mode .view{padding-bottom:96px;}
+body.bottom-nav-mode #bottom-nav{display:flex !important;}
 .print-only{display:none;}
 @media print{
   body *{visibility:hidden;}
@@ -393,6 +408,7 @@ tr:hover td{background:var(--surface-alt);}
   </div>
 
   <div class="fab-container" id="fab"></div>
+  <div class="bottom-nav" id="bottom-nav" style="display:none;"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -558,17 +574,25 @@ const STATUSES = [
 ];
 
 const ACCENT_PRESETS = [
-  {base:'#A9782E', dark:'#7E5A20', light:'#F3E8D2', label:'Emas Klasik'},
-  {base:'#0EA5A4', dark:'#0B8483', light:'#E3F7F6', label:'Teal Segar'},
-  {base:'#2563EB', dark:'#1D4ED8', light:'#E5EEFF', label:'Biru Kalem'},
-  {base:'#7C3AED', dark:'#6D28D9', light:'#F0E9FE', label:'Ungu Elegan'},
-  {base:'#E11D48', dark:'#BE123C', light:'#FCE4E9', label:'Merah Berani'},
-  {base:'#16A34A', dark:'#15803D', light:'#E4F7EB', label:'Hijau Keuangan'},
-  {base:'#1E3A8A', dark:'#152B66', light:'#E3E9F9', label:'Navy Profesional'},
-  {base:'#0D9488', dark:'#0A6F65', light:'#DCF5F1', label:'Hijau Tosca (ADM/Edukasi)'},
-  {base:'#059669', dark:'#047857', light:'#DBF5EA', label:'Emerald Dompet (Finansial)'},
-  {base:'#EA580C', dark:'#C2410C', light:'#FDE9DA', label:'Oranye Hangat'},
-  {base:'#475569', dark:'#334155', light:'#E7EBF0', label:'Slate Modern'},
+  // ✨ Mewah (luxurious/elegant)
+  {base:'#A9782E', dark:'#7E5A20', light:'#F3E8D2', label:'Emas Klasik', cat:'mewah'},
+  {base:'#1E3A8A', dark:'#152B66', light:'#E3E9F9', label:'Navy Profesional', cat:'mewah'},
+  {base:'#7C3AED', dark:'#6D28D9', light:'#F0E9FE', label:'Ungu Elegan', cat:'mewah'},
+  {base:'#9F1239', dark:'#7A0E2C', light:'#FBE4EA', label:'Maroon Anggun', cat:'mewah'},
+  {base:'#B45309', dark:'#92400E', light:'#FBEAD3', label:'Perunggu Hangat', cat:'mewah'},
+  {base:'#166534', dark:'#0F4D27', light:'#E1F3E7', label:'Hijau Zamrud', cat:'mewah'},
+  // 😌 Kalem (calm/soft)
+  {base:'#0EA5A4', dark:'#0B8483', light:'#E3F7F6', label:'Teal Segar', cat:'kalem'},
+  {base:'#2563EB', dark:'#1D4ED8', light:'#E5EEFF', label:'Biru Kalem', cat:'kalem'},
+  {base:'#0D9488', dark:'#0A6F65', light:'#DCF5F1', label:'Hijau Tosca', cat:'kalem'},
+  {base:'#059669', dark:'#047857', light:'#DBF5EA', label:'Emerald Lembut', cat:'kalem'},
+  {base:'#475569', dark:'#334155', light:'#E7EBF0', label:'Slate Modern', cat:'kalem'},
+  {base:'#BE7A9C', dark:'#9C5F7E', light:'#FBEAF2', label:'Dusty Rose', cat:'kalem'},
+  {base:'#65A30D', dark:'#4D7C0F', light:'#EDF5DD', label:'Sage Lembut', cat:'kalem'},
+  // Warna berani lainnya
+  {base:'#E11D48', dark:'#BE123C', light:'#FCE4E9', label:'Merah Berani', cat:'berani'},
+  {base:'#EA580C', dark:'#C2410C', light:'#FDE9DA', label:'Oranye Hangat', cat:'berani'},
+  {base:'#16A34A', dark:'#15803D', light:'#E4F7EB', label:'Hijau Keuangan', cat:'berani'},
 ];
 const STYLE_PRESETS = [
   {k:'classic', l:'Klasik Elegan', desc:'Sudut lengkung sedang, font serif di judul — tampilan bawaan yang hangat.'},
@@ -594,6 +618,7 @@ const ICONS = {
   dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16l-1.5 13.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 4Z"/><path d="M8 4V3a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/></svg>',
   track:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M17 20h3"/></svg>',
+  shirtWash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.2 4.8 6l2 3.1L9 7.6V20.5h6V7.6l2.2 1.5 2-3.1L15 3.2c-.7 1-1.9 1.6-3 1.6s-2.3-.6-3-1.6Z"/><circle cx="18" cy="4.3" r=".9"/><circle cx="20.2" cy="6.6" r="1.2"/><circle cx="17.2" cy="7.6" r=".6"/></svg>',
   inventory:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
   repair:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2 2.8-2.8Z"/></svg>',
   kas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v.01M18 18v-.01"/></svg>',
@@ -624,7 +649,7 @@ const NAV = [
   {k:'queue', l:'Antrian & Pengantaran', icon:ICONS.bell},
   {k:'customers', l:'Pelanggan', icon:ICONS.customers},
   {k:'services', l:'Layanan & Harga', icon:ICONS.tag},
-  {k:'tracking', l:'Tracking / Scan', icon:ICONS.track},
+  {k:'tracking', l:'Tracking / Scan', icon:ICONS.shirtWash},
   {k:'inventory', l:'Inventaris', icon:ICONS.inventory},
   {k:'repairs', l:'Perbaikan', icon:ICONS.repair},
   {k:'kas', l:'Kas Laundry', icon:ICONS.kas},
@@ -678,56 +703,6 @@ function setFont(font){
 }
 applyTheme();
 updateUndoRedoUI();
-
-/* ================= ORIENTATION LOCK (mobile/tablet, portrait or landscape) ================= */
-function isStandaloneApp(){
-  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
-}
-function orientationLockSupported(){
-  return !!(screen.orientation && screen.orientation.lock);
-}
-async function applyOrientationLock(silent){
-  const enabled = !!(SETTINGS && SETTINGS.orientationLockEnabled);
-  const mode = (SETTINGS && SETTINGS.orientationLock) || 'auto';
-  if(!orientationLockSupported()){
-    if(!silent) toast('⚠️ Browser/HP ini tidak mendukung API kunci orientasi — kunci rotasi manual lewat pengaturan HP', '⚠️');
-    return;
-  }
-  if(!enabled || mode==='auto'){
-    try{ if(screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
-    if(document.fullscreenElement){ try{ document.exitFullscreen(); }catch(e){} }
-    if(!silent) toast('Kunci orientasi dinonaktifkan — mengikuti rotasi perangkat');
-    return;
-  }
-  try{
-    // Most browsers only allow orientation.lock() while the page is either
-    // fullscreen, or running as an installed PWA (standalone display mode).
-    // In a normal browser tab we request fullscreen first as a fallback.
-    if(!isStandaloneApp() && !document.fullscreenElement && document.documentElement.requestFullscreen){
-      await document.documentElement.requestFullscreen().catch(()=>{});
-    }
-    await screen.orientation.lock(mode);
-    if(!silent) toast('🔒 Layar dikunci ke mode '+(mode==='portrait'?'Potrait':'Lanskap'), '✅');
-  }catch(e){
-    if(!silent) toast('⚠️ Gagal mengunci orientasi — browser ini butuh aplikasi di-"Add to Home Screen" dulu, atau kunci rotasi manual dari pengaturan HP', '⚠️');
-  }
-}
-function setOrientationLockEnabled(checked){
-  if(!SETTINGS) return;
-  SETTINGS.orientationLockEnabled = checked;
-  DB.set('settings', SETTINGS);
-  const sel = document.getElementById('st-orientation'); if(sel) sel.disabled = !checked;
-  applyOrientationLock();
-}
-function setOrientationLock(val){
-  if(!SETTINGS) return;
-  SETTINGS.orientationLock = val;
-  DB.set('settings', SETTINGS);
-  applyOrientationLock();
-}
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) applyOrientationLock(true); });
-window.addEventListener('focus', ()=>applyOrientationLock(true));
-window.addEventListener('pageshow', ()=>applyOrientationLock(true));
 
 /* ================= BOOT ================= */
 function getTrackParams(){
@@ -848,11 +823,11 @@ function bootMain(){
   document.getElementById('brand-name').textContent = SETTINGS.businessName;
   document.getElementById('brand-addr').textContent = SETTINGS.address;
   document.getElementById('active-emp').textContent = activeKasir;
-  applyOrientationLock(true);
   updateShiftTimer();
   clearInterval(window._shiftTimerInt);
   window._shiftTimerInt = setInterval(updateShiftTimer, 30000);
   applyTheme();
+  applyNavMode();
   renderNav();
   renderFab();
   navigate('dashboard');
@@ -869,7 +844,7 @@ function renderFab(){
   fab.innerHTML = `
     <button class="fab-option" onclick="fabAction('shift')">🔁 Selesai / Ganti Shift</button>
     <button class="fab-option" onclick="fabAction('kas')">${ICONS.kas} Catat Belanja Laundry</button>
-    <button class="fab-option" onclick="fabAction('scan')">${ICONS.scan} Scan Progres</button>
+    <button class="fab-option" onclick="fabAction('scan')">${ICONS.shirtWash} Scan Progres</button>
     <button class="fab-option" onclick="fabAction('customer')">${ICONS.customers} Pelanggan Baru</button>
     <button class="fab-option" onclick="fabAction('order')">${ICONS.orders} Pesanan Baru</button>
     <button class="fab-main" id="fab-btn" onclick="toggleFab()">${ICONS.plus}</button>
@@ -906,7 +881,7 @@ document.addEventListener('keydown', function(e){
   if(now - _hwScanLastT > 80) _hwScanBuf = ''; // gap too long = normal human typing, reset
   _hwScanLastT = now;
   if(e.key==='Enter'){
-    if(_hwScanBuf.length>=3){ processScannedCode(extractCode(_hwScanBuf)); toast('Kode terbaca dari alat scan: '+_hwScanBuf); }
+    if(_hwScanBuf.length>=3){ processScannedCodeAuto(extractCode(_hwScanBuf)); }
     _hwScanBuf=''; return;
   }
   if(e.key.length===1) _hwScanBuf += e.key;
@@ -1205,10 +1180,13 @@ function initFirebase(){
 function updateSyncPill(){
   const pill = document.getElementById('sync-pill');
   if(!pill) return;
-  if(fbReady){ pill.innerHTML = '<span class="dot"></span><span>Tersambung Cloud</span>'; }
+  if(!navigator.onLine){ pill.innerHTML = '<span class="dot off"></span><span>📴 Offline</span>'; }
+  else if(fbReady){ pill.innerHTML = '<span class="dot"></span><span>Tersambung Cloud</span>'; }
   else if(fbConfig && fbConfig.apiKey){ pill.innerHTML = '<span class="dot off"></span><span>Cloud Error</span>'; }
   else{ pill.innerHTML = '<span class="dot off"></span><span>Lokal</span>'; }
 }
+window.addEventListener('online', ()=>{ updateSyncPill(); toast('🌐 Kembali online'); });
+window.addEventListener('offline', ()=>{ updateSyncPill(); toast('📴 Sedang offline — data tetap tersimpan di HP ini dan akan sinkron otomatis saat online lagi', 'ℹ️'); });
 function syncOrderToCloud(o){
   if(!fbReady) return;
   try{
@@ -1277,10 +1255,84 @@ function renderPublicTracker(tp){
 }
 
 /* ================= SIDEBAR / NAV ================= */
+const NAV_SLOT_OPTIONS = [
+  {k:'dashboard', l:'Dashboard', icon:ICONS.dashboard},
+  {k:'queue', l:'Antrian & Layanan', icon:ICONS.bell},
+  {k:'orders', l:'Pesanan', icon:ICONS.orders},
+  {k:'orders-new', l:'Pesanan Baru', icon:ICONS.plus},
+  {k:'customers', l:'Pelanggan', icon:ICONS.customers},
+  {k:'tracking', l:'Tracking / Scan', icon:ICONS.shirtWash},
+  {k:'kas', l:'Kas Laundry', icon:ICONS.kas},
+  {k:'kos', l:'Penjaga Kos', icon:ICONS.customers},
+  {k:'repairs', l:'Perbaikan', icon:ICONS.repair},
+  {k:'report', l:'Laporan', icon:ICONS.report},
+  {k:'services', l:'Layanan', icon:ICONS.tag},
+  {k:'inventory', l:'Inventaris', icon:ICONS.inventory},
+];
+const DEFAULT_BOTTOM_NAV = ['queue','dashboard','orders-new'];
+function bottomNavItems(){ return (SETTINGS && SETTINGS.bottomNavItems && SETTINGS.bottomNavItems.length===3) ? SETTINGS.bottomNavItems : DEFAULT_BOTTOM_NAV; }
+function navSlotAction(key){
+  closeMoreMenu();
+  if(key==='orders-new') openNewOrder();
+  else navigate(key);
+}
+function bnActive(key){
+  if(key==='orders-new') return currentView==='orders';
+  return currentView===key;
+}
+function renderBottomNav(){
+  const bar = document.getElementById('bottom-nav');
+  if(!bar) return;
+  const [slotA, slotB, slotC] = bottomNavItems();
+  const opt = k => NAV_SLOT_OPTIONS.find(x=>x.k===k) || NAV_SLOT_OPTIONS[0];
+  const a = opt(slotA), b = opt(slotB), c = opt(slotC);
+  bar.innerHTML = `
+    <button class="bn-item ${bnActive(a.k)?'active':''}" onclick="navSlotAction('${a.k}')">${a.icon}<span>${a.l}</span></button>
+    <button class="bn-item ${bnActive(b.k)?'active':''}" onclick="navSlotAction('${b.k}')">${b.icon}<span>${b.l}</span></button>
+    <div class="bn-center">
+      <button class="bn-center-btn" onclick="closeMoreMenu();fabAction('scan')" title="Scan Progres">${ICONS.shirtWash}</button>
+      <span>Scan</span>
+    </div>
+    <button class="bn-item ${bnActive(c.k)?'active':''}" onclick="navSlotAction('${c.k}')">${c.icon}<span>${c.l}</span></button>
+    <button class="bn-item" onclick="openMoreMenu()">${ICONS.more||'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'}<span>Menu Lain</span></button>
+  `;
+}
+function openMoreMenu(){
+  const shown = bottomNavItems();
+  openModal(`
+    <div class="modal-head"><h3>Menu Lain</h3><button class="x-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      ${NAV.map(n=>`
+        <button class="btn ${currentView===n.k?'btn-primary':''}" style="flex-direction:column;height:76px;gap:6px;" onclick="closeModal();navigate('${n.k}')">
+          <span style="width:22px;height:22px;">${n.icon}</span><span style="font-size:11.5px;">${n.l}</span>
+        </button>`).join('')}
+    </div>
+  `);
+}
+function closeMoreMenu(){ /* alias kept for clarity at call sites; closeModal() already handles it */ }
+function setNavMode(mode){
+  SETTINGS.navMode = mode; DB.set('settings', SETTINGS);
+  applyNavMode();
+  renderSettings();
+}
+function applyNavMode(){
+  const mode = (SETTINGS && SETTINGS.navMode) || 'side';
+  document.body.classList.toggle('bottom-nav-mode', mode==='bottom');
+  if(mode==='bottom') renderBottomNav();
+}
+function setBottomNavSlot(idx, val){
+  const items = bottomNavItems().slice();
+  items[idx] = val;
+  SETTINGS.bottomNavItems = items;
+  DB.set('settings', SETTINGS);
+  renderBottomNav();
+  renderSettings();
+}
 function renderNav(){
   document.getElementById('nav').innerHTML = NAV.map(n=>`
     <button class="nav-item ${currentView===n.k?'active':''}" onclick="navigate('${n.k}')">${n.icon}<span>${n.l}</span></button>
   `).join('');
+  renderBottomNav();
 }
 function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('scrim').classList.add('show'); }
 function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('scrim').classList.remove('show'); }
@@ -2757,7 +2809,7 @@ function renderTracking(){
   el.innerHTML = `
     <div class="grid grid-2" style="align-items:start;">
       <div class="card">
-        <h3 style="margin:0 0 4px;font-size:15px;">Scan Barcode Pesanan</h3>
+        <h3 style="margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px;"><span style="width:20px;height:20px;display:inline-flex;color:var(--accent-d);">${ICONS.shirtWash}</span>Scan Barcode Pesanan</h3>
         <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;">Buka kamera langsung dalam mode scan untuk memindai QR code pada nota, atau pilih foto QR dari galeri.</p>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
           <button class="btn btn-primary" style="flex:1;min-width:160px;" onclick="openCameraScanner()">${ICONS.scan} Buka Kamera Scan</button>
@@ -2805,6 +2857,24 @@ function processScannedCode(code){
   </div>`;
   toast('Pesanan '+o.code+' ditemukan');
 }
+function processScannedCodeAuto(code){
+  // Used by camera/gallery scan — unlike manual code entry, this advances
+  // the order status immediately (no extra confirm tap needed) and shows a
+  // clear "maju ke: ..." notification, since scanning is meant to be a
+  // one-motion action during sorting/packing.
+  const o = orders.find(x=>x.code.toUpperCase()===code);
+  if(!o){ toast('⚠️ Kode "'+code+'" tidak ditemukan', '⚠️'); return; }
+  const idx = STATUSES.findIndex(s=>s.k===o.status);
+  if(idx>=STATUSES.length-1){ toast('ℹ️ Pesanan '+o.code+' sudah di status akhir: '+STATUSES[idx].l, 'ℹ️'); openOrderDetail(o.id); return; }
+  snapshot();
+  const nextIdx = idx+1;
+  o.status = STATUSES[nextIdx].k;
+  o.statusHistory.push({status:o.status, time:Date.now(), by:activeKasir});
+  DB.set('orders', orders);
+  syncOrderToCloud(o);
+  toast('✅ '+o.code+' — progres maju ke: "'+STATUSES[nextIdx].l+'"', '✅');
+  if(currentView==='tracking') renderTracking();
+}
 function openCameraScanner(){
   if(document.getElementById('scanner-overlay')) return;
   const ov = document.createElement('div');
@@ -2813,7 +2883,7 @@ function openCameraScanner(){
     <video id="scan-video" playsinline muted autoplay></video>
     <div class="scanner-topbar">
       <button onclick="closeCameraScanner()">✕</button>
-      <div style="font-size:13.5px;font-weight:600;">Scan QR Nota</div>
+      <div style="font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;"><span style="width:18px;height:18px;display:inline-flex;">${ICONS.shirtWash}</span>Scan QR Nota</div>
       <button id="scan-torch-btn" onclick="toggleTorch()" style="display:none;">🔦</button>
     </div>
     <div class="scanner-frame"><div class="corner2"></div><div class="corner3"></div><div class="scan-line"></div></div>
@@ -2838,7 +2908,7 @@ function openCameraScanner(){
         const code = jsQR(img.data, img.width, img.height);
         if(code && code.data){
           if(navigator.vibrate) navigator.vibrate(80);
-          processScannedCode(extractCode(code.data));
+          processScannedCodeAuto(extractCode(code.data));
           closeCameraScanner();
           return;
         }
@@ -2875,7 +2945,7 @@ function scanFromGalleryFile(file){
     ctx.drawImage(img, 0, 0);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(data.data, data.width, data.height);
-    if(code && code.data){ processScannedCode(extractCode(code.data)); }
+    if(code && code.data){ processScannedCodeAuto(extractCode(code.data)); }
     else toast('QR code tidak terbaca dari gambar ini, coba foto yang lebih jelas/dekat','⚠️');
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('Gagal membaca file gambar','⚠️'); };
@@ -3322,44 +3392,90 @@ function exportRekapPDF(){
 /* =========================================================================
    NOTA
 ========================================================================= */
-function openNota(id){
-  const o = orders.find(x=>x.id===id); if(!o) return;
-  const notaHtml = `
-    <div id="nota-inner" style="max-width:360px;margin:0 auto;font-family:'Inter',sans-serif;padding:20px;background:#fff;color:#0F172A;">
-      <div style="text-align:center;margin-bottom:14px;">
-        <div style="font-family:'Fraunces';font-weight:800;font-size:17px;">${SETTINGS.businessName}</div>
-        <div style="font-size:11px;color:#666;">${SETTINGS.address}</div>
+const NOTA_FONTS = {
+  sans: {label:'Sans Modern', body:"'Inter',sans-serif", heading:"'Inter',sans-serif", headingWeight:800},
+  mono: {label:'Struk Kasir (Mono)', body:"'JetBrains Mono',monospace", heading:"'JetBrains Mono',monospace", headingWeight:700},
+  serif: {label:'Serif Elegan', body:"'Inter',sans-serif", heading:"'Fraunces',serif", headingWeight:700},
+};
+const NOTA_SIZES = { sm:{label:'Kecil', base:11, heading:15, total:13, qr:100}, md:{label:'Sedang', base:12.5, heading:17, total:15, qr:120}, lg:{label:'Besar', base:14.5, heading:19, total:17, qr:140} };
+const NOTA_MODELS = {
+  classic:{label:'Klasik (garis putus-putus)'},
+  boxed:{label:'Kotak (border solid)'},
+  compact:{label:'Ringkas (hemat kertas)'},
+};
+function notaHTML(o, opts){
+  opts = opts || {};
+  const fontKey = opts.font || SETTINGS.notaFont || 'sans';
+  const sizeKey = opts.size || SETTINGS.notaFontSize || 'md';
+  const modelKey = opts.model || SETTINGS.notaModel || 'classic';
+  const F = NOTA_FONTS[fontKey] || NOTA_FONTS.sans;
+  const S = NOTA_SIZES[sizeKey] || NOTA_SIZES.md;
+  const compact = modelKey==='compact';
+  const boxed = modelKey==='boxed';
+  const divider = boxed ? `border-top:1.5px solid #1F2937;border-bottom:1.5px solid #1F2937;` : `border-top:1px dashed #999;border-bottom:1px dashed #999;`;
+  const dividerTop = boxed ? `border-top:1.5px solid #1F2937;` : `border-top:1px dashed #999;`;
+  return `
+    <div id="nota-inner" style="max-width:360px;margin:0 auto;font-family:${F.body};padding:${compact?'14px':'20px'};background:#fff;color:#0F172A;font-size:${S.base}px;${boxed?'border:1.5px solid #1F2937;border-radius:6px;':''}">
+      <div style="text-align:center;margin-bottom:${compact?'8px':'14px'};">
+        <div style="font-family:${F.heading};font-weight:${F.headingWeight};font-size:${S.heading}px;">${SETTINGS.businessName}</div>
+        <div style="font-size:${S.base-1.5}px;color:#666;">${SETTINGS.address}</div>
       </div>
-      <div style="border-top:1px dashed #999;border-bottom:1px dashed #999;padding:8px 0;font-size:12.5px;">
+      <div style="${divider}padding:${compact?'5px':'8px'} 0;font-size:${S.base}px;">
         <div style="display:flex;justify-content:space-between;"><span>No. Nota</span><b class="mono">${o.code}</b></div>
         <div style="display:flex;justify-content:space-between;"><span>Tanggal</span><span>${fmtDateTime(o.createdAt)}</span></div>
         <div style="display:flex;justify-content:space-between;"><span>Pelanggan</span><span>${o.customer}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Admin Kasir</span><span>${o.handledBy||'-'}</span></div>
+        ${compact?'':`<div style="display:flex;justify-content:space-between;"><span>Admin Kasir</span><span>${o.handledBy||'-'}</span></div>`}
       </div>
-      <table style="width:100%;font-size:12.5px;margin:10px 0;border-collapse:collapse;">
+      <table style="width:100%;font-size:${S.base}px;margin:${compact?'6px':'10px'} 0;border-collapse:collapse;">
         ${orderItems(o).map(it=>`<tr><td>${it.serviceName}</td><td style="text-align:right;">${it.qty}${it.unit==='pcs'?' pcs':' kg'}</td><td style="text-align:right;">${rupiah(it.subtotal)}</td></tr>`).join('')}
         ${o.discountAmount?`<tr><td colspan="2">Diskon${o.discountType==='percent'?' ('+o.discountValue+'%)':''}</td><td style="text-align:right;">-${rupiah(o.discountAmount)}</td></tr>`:''}
       </table>
-      <div style="border-top:1px dashed #999;padding-top:8px;display:flex;justify-content:space-between;font-weight:700;font-size:15px;">
+      <div style="${dividerTop}padding-top:${compact?'5px':'8px'};display:flex;justify-content:space-between;font-weight:700;font-size:${S.total}px;">
         <span>TOTAL</span><span class="mono">${rupiah(o.total)}</span>
       </div>
-      <div style="text-align:center;margin-top:6px;font-size:11px;color:${o.paid?'#15803D':'#B45309'};font-weight:700;">${o.paid?'LUNAS':'BELUM LUNAS'}</div>
-      ${o.notes?`<div style="font-size:11px;color:#666;margin-top:8px;">Catatan: ${o.notes}</div>`:''}
-      ${o.sortNote?`<div style="font-size:11px;color:#666;margin-top:6px;border-top:1px dashed #ccc;padding-top:6px;"><b>Rincian Sortir:</b> ${o.sortNote}</div>`:''}
-      <div style="text-align:center;margin-top:14px;" id="nota-qr"></div>
-      <div style="text-align:center;font-size:10.5px;color:#999;margin-top:10px;white-space:pre-line;">${(SETTINGS.notaFooterText||'Terima kasih atas kepercayaan Anda 🙏')}</div>
+      <div style="text-align:center;margin-top:6px;font-size:${S.base-1.5}px;color:${o.paid?'#15803D':'#B45309'};font-weight:700;">${o.paid?'LUNAS':'BELUM LUNAS'}</div>
+      ${o.notes?`<div style="font-size:${S.base-1.5}px;color:#666;margin-top:8px;">Catatan: ${o.notes}</div>`:''}
+      ${o.sortNote?`<div style="font-size:${S.base-1.5}px;color:#666;margin-top:6px;border-top:1px dashed #ccc;padding-top:6px;"><b>Rincian Sortir:</b> ${o.sortNote}</div>`:''}
+      <div style="text-align:center;margin-top:${compact?'8px':'14px'};" id="nota-qr"></div>
+      <div style="text-align:center;font-size:${S.base-2}px;color:#999;margin-top:${compact?'6px':'10px'};white-space:pre-line;">${(SETTINGS.notaFooterText||'Terima kasih atas kepercayaan Anda 🙏')}</div>
     </div>
   `;
+}
+function renderNotaQR(elId, o, size){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML = '';
+  try{ new QRCode(el, {text: fbReady?trackingUrlFor(o.code):o.code, width:size||120, height:size||120, correctLevel: QRCode.CorrectLevel.M}); }catch(e){}
+}
+function openNota(id){
+  const o = orders.find(x=>x.id===id); if(!o) return;
+  const sizeKey = SETTINGS.notaFontSize || 'md';
   openModal(`
     <div class="modal-head"><h3>Nota Pesanan</h3><button class="x-close" onclick="closeModal()">✕</button></div>
-    <div class="modal-body" style="background:var(--surface-alt);">${notaHtml}</div>
+    <div class="modal-body" style="background:var(--surface-alt);">${notaHTML(o)}</div>
     <div class="modal-foot"><button class="btn" onclick="downloadNotaPdf('${o.id}')">Unduh PDF</button><button class="btn" onclick="downloadNotaImage('${o.id}')">${ICONS.download||''} Unduh Gambar</button><button class="btn" onclick="printNota('${o.id}')">${ICONS.print} Cetak</button><button class="btn" onclick="printNotaBluetooth('${o.id}')">🔵 Cetak Bluetooth</button><button class="btn btn-primary" onclick="shareNotaImage('${o.id}')">${ICONS.share||''} Bagikan Gambar</button></div>
   `);
-  setTimeout(()=>{ try{ new QRCode(document.getElementById('nota-qr'), {text: fbReady?trackingUrlFor(o.code):o.code, width:120, height:120, correctLevel: QRCode.CorrectLevel.M}); }catch(e){} }, 30);
+  // Render QR immediately (synchronously) right after the modal DOM exists —
+  // previously this used a 30ms setTimeout, which created a race condition:
+  // tapping Unduh/Cetak/Bluetooth quickly after opening the nota could fire
+  // before the QR finished rendering, producing exports with a blank QR spot.
+  renderNotaQR('nota-qr', o, NOTA_SIZES[sizeKey].qr);
 }
-function printNota(id){
-  document.getElementById('nota-print').innerHTML = document.getElementById('nota-inner').outerHTML;
-  window.print();
+async function printNota(id){
+  const o = orders.find(x=>x.id===id); if(!o) return;
+  // Rasterize to an image first instead of copying outerHTML — outerHTML
+  // can't capture <canvas> pixel content (the QR code library renders to a
+  // <canvas>), which is why the QR was showing up blank in the print preview.
+  toast('Menyiapkan pratinjau cetak...', '⏳');
+  try{
+    const canvas = await notaCanvas();
+    const dataUrl = canvas.toDataURL('image/png');
+    document.getElementById('nota-print').innerHTML = `<img src="${dataUrl}" style="width:100%;">`;
+    setTimeout(()=>window.print(), 80);
+  }catch(e){
+    document.getElementById('nota-print').innerHTML = document.getElementById('nota-inner').outerHTML;
+    window.print();
+  }
 }
 
 /* ================= BLUETOOTH THERMAL PRINTER (ESC/POS) ================= */
@@ -3586,6 +3702,48 @@ function renderSettings(){
       </div>
 
       <div class="card">
+        <h3 style="margin:0 0 4px;font-size:15px;">📱 Posisi Menu</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Pilih dari samping (menu hamburger, cocok layar lebar) atau dari bawah (bilah tab, cocok satu tangan di HP).</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn ${(SETTINGS.navMode||'side')==='side'?'btn-primary':''}" style="flex:1;" onclick="setNavMode('side')">☰ Dari Samping</button>
+          <button class="btn ${SETTINGS.navMode==='bottom'?'btn-primary':''}" style="flex:1;" onclick="setNavMode('bottom')">⬇️ Dari Bawah</button>
+        </div>
+        ${SETTINGS.navMode==='bottom' ? `
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Susunan bilah bawah: <b>[kiri] — [kiri-tengah] — 🧺 Scan (tetap di tengah) — [kanan-tengah] — Menu Lain (⋯, tetap di kanan)</b>. Atur 3 slot yang bisa dipilih bebas:</div>
+        ${bottomNavItems().map((v,i)=>`
+          <div class="field"><label>Slot ${i+1} (${i===0?'paling kiri':i===1?'kiri-tengah, sebelah kiri Scan':'kanan-tengah, sebelah kanan Scan'})</label>
+            <select onchange="setBottomNavSlot(${i}, this.value)">
+              ${NAV_SLOT_OPTIONS.map(o=>`<option value="${o.k}" ${v===o.k?'selected':''}>${o.l}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+        <div style="font-size:11px;color:var(--muted);">Tombol Scan (tengah) & Menu Lain (⋯, kanan) selalu tetap di posisinya sebagai jalan pintas baku.</div>
+        ` : ''}
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 4px;font-size:15px;">🧾 Pratinjau &amp; Model Nota</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 14px;">Atur tampilan nota yang dilihat pelanggan &amp; dicetak — berlaku untuk semua nota (PDF, gambar, cetak, Bluetooth).</p>
+        <div class="field"><label>Font Nota</label>
+          <select id="st-nota-font" onchange="setNotaStyle('font', this.value)">
+            ${Object.entries(NOTA_FONTS).map(([k,f])=>`<option value="${k}" ${(SETTINGS.notaFont||'sans')===k?'selected':''}>${f.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Ukuran Teks</label>
+          <select id="st-nota-size" onchange="setNotaStyle('size', this.value)">
+            ${Object.entries(NOTA_SIZES).map(([k,s])=>`<option value="${k}" ${(SETTINGS.notaFontSize||'md')===k?'selected':''}>${s.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Model Nota</label>
+          <select id="st-nota-model" onchange="setNotaStyle('model', this.value)">
+            ${Object.entries(NOTA_MODELS).map(([k,m])=>`<option value="${k}" ${(SETTINGS.notaModel||'classic')===k?'selected':''}>${m.label}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-top:14px;background:var(--surface-alt);border-radius:14px;padding:14px;">
+          <div id="nota-preview-box" style="transform:scale(.82);transform-origin:top center;"></div>
+        </div>
+      </div>
+
+      <div class="card">
         <h3 style="margin:0 0 4px;font-size:15px;">🔵 Printer Bluetooth</h3>
         <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Sambungkan printer thermal Bluetooth untuk cetak nota langsung dari HP tanpa kabel. Butuh Chrome/Edge di Android atau desktop — tidak didukung di Safari/iPhone.</p>
         <div style="font-size:12.5px;margin-bottom:10px;">Status: ${btPrinter.char?`<span class="badge b-green">Tersambung — ${btPrinter.device.name||'Printer'}</span>`:'<span class="badge b-gray">Belum tersambung</span>'}</div>
@@ -3601,9 +3759,19 @@ function renderSettings(){
           </div>
         </div>
         <div class="field"><label>Warna aksen</label>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            ${ACCENT_PRESETS.map(p=>`<button class="swatch ${theme.accent.base===p.base?'sel':''}" title="${p.label}" style="background:${p.base}" onclick='setAccent(${JSON.stringify(p)})'></button>`).join('')}
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin:4px 0 6px;">✨ MEWAH</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            ${ACCENT_PRESETS.filter(p=>p.cat==='mewah').map(p=>`<button class="swatch ${theme.accent.base===p.base?'sel':''}" title="${p.label}" style="background:${p.base}" onclick='setAccent(${JSON.stringify(p)})'></button>`).join('')}
           </div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin:4px 0 6px;">😌 KALEM</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            ${ACCENT_PRESETS.filter(p=>p.cat==='kalem').map(p=>`<button class="swatch ${theme.accent.base===p.base?'sel':''}" title="${p.label}" style="background:${p.base}" onclick='setAccent(${JSON.stringify(p)})'></button>`).join('')}
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin:4px 0 6px;">🎨 BERANI</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            ${ACCENT_PRESETS.filter(p=>p.cat==='berani').map(p=>`<button class="swatch ${theme.accent.base===p.base?'sel':''}" title="${p.label}" style="background:${p.base}" onclick='setAccent(${JSON.stringify(p)})'></button>`).join('')}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;">Terpilih: <b style="color:var(--accent-d)">${(ACCENT_PRESETS.find(p=>p.base===theme.accent.base)||{}).label||'Kustom'}</b> — coba juga dipadukan dengan mode 🌙 gelap/☀️ terang di pojok kanan atas untuk nuansa berbeda.</div>
         </div>
         <div class="field">
           <label>Gaya Tampilan (UI)</label>
@@ -3624,17 +3792,6 @@ function renderSettings(){
                 <div style="font-size:11px;color:var(--muted);margin-top:2px;">${f.desc}</div>
               </button>`).join('')}
           </div>
-        </div>
-        <div class="field">
-          <label>Orientasi Layar (HP &amp; Tablet)</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;margin-bottom:8px;"><input type="checkbox" id="st-orientation-enabled" style="width:auto;" ${SETTINGS.orientationLockEnabled?'checked':''} onchange="setOrientationLockEnabled(this.checked)">Kunci orientasi layar (nonaktif = ikuti rotasi normal HP)</label>
-          <select id="st-orientation" onchange="setOrientationLock(this.value)" ${SETTINGS.orientationLockEnabled?'':'disabled'}>
-            <option value="auto" ${(SETTINGS.orientationLock||'auto')==='auto'?'selected':''}>Otomatis — ikuti potrait/lanskap perangkat</option>
-            <option value="portrait" ${SETTINGS.orientationLock==='portrait'?'selected':''}>Kunci Potrait</option>
-            <option value="landscape" ${SETTINGS.orientationLock==='landscape'?'selected':''}>Kunci Lanskap</option>
-          </select>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">${orientationLockSupported()?'⚠️ Fitur ini hanya benar-benar stabil saat aplikasi dibuka dari ikon layar utama (hasil "Add to Home Screen"/Install), bukan dari tab browser biasa. Kadang Android tetap bisa melepas kunci ini sendiri (mis. setelah membuka app lain) — aplikasi akan otomatis coba mengunci ulang saat dibuka kembali.':'⚠️ Browser ini tidak mendukung API kunci orientasi — putar/kunci manual lewat pengaturan HP.'}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Kalau masih sering lepas sendiri, cara paling pasti: kunci rotasi lewat Quick Settings HP (ikon kunci putar di panel notifikasi).</div>
         </div>
 
         <div class="card" style="background:var(--surface-alt);border:none;margin-top:22px;padding:14px;">
@@ -3763,6 +3920,31 @@ function renderSettings(){
       </div>
     </div>
   `;
+  renderNotaPreview();
+}
+function sampleOrderForPreview(){
+  return {
+    code:'LD26070001', createdAt:new Date().toISOString(), customer:'Budi Santoso', handledBy: activeKasir||'Admin',
+    services:[{serviceId:services[0]?services[0].id:'s1', qty:3, unitType:'kg'}],
+    weightKg:3, serviceName: services[0]?services[0].name:'Cuci Setrika', pricePerKg: services[0]?services[0].price:8000,
+    extraItems:[], subtotal:24000, discountAmount:2000, discountType:'amount', discountValue:2000, total:22000,
+    paid:false, notes:'', sortNote:'2 kaos, 1 celana, 1 handuk',
+  };
+}
+function renderNotaPreview(){
+  const box = document.getElementById('nota-preview-box');
+  if(!box) return;
+  const sample = sampleOrderForPreview();
+  box.innerHTML = notaHTML(sample);
+  const sizeKey = SETTINGS.notaFontSize || 'md';
+  renderNotaQR('nota-qr', sample, NOTA_SIZES[sizeKey].qr);
+}
+function setNotaStyle(key, val){
+  if(key==='font') SETTINGS.notaFont = val;
+  else if(key==='size') SETTINGS.notaFontSize = val;
+  else if(key==='model') SETTINGS.notaModel = val;
+  DB.set('settings', SETTINGS);
+  renderNotaPreview();
 }
 function resetOrdersData(){
   if(!orders.length){ toast('Tidak ada data pesanan','ℹ️'); return; }
