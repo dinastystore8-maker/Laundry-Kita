@@ -548,6 +548,21 @@ let activeKasir = sessionStorage.getItem('lyos_active_kasir') || null;
 let currentView = 'dashboard';
 let fbApp=null, fbDb=null, fbReady=false;
 
+// Standard 4-tier duration presets for grouped services (editable per group,
+// these are just sensible starting defaults matching common laundry speeds).
+const TIER_PRESETS = [
+  {key:'reguler', label:'Reguler', hours:72},
+  {key:'reguler-plus', label:'Reguler+', hours:48},
+  {key:'ekspres', label:'Ekspres', hours:24},
+  {key:'ekspres-plus', label:'Ekspres+', hours:8},
+];
+function fmtDuration(days){
+  const hours = Math.round((days||0)*24);
+  if(hours<24) return hours+' jam';
+  if(hours%24===0) return (hours/24)+'x24 jam';
+  return (hours/24).toFixed(1)+'x24 jam';
+}
+
 const DEFAULT_SERVICES = (base)=>[
   {id:uid('svc_'), name:'Reguler', note:'3 hari', price: base, durationDays:3, unitType:'kg'},
   {id:uid('svc_'), name:'Reguler+', note:'3 hari, wangi tahan lama', price: base+2000, durationDays:3, unitType:'kg'},
@@ -836,6 +851,7 @@ function bootMain(){
   applyNavMode();
   renderNav();
   renderFab();
+  if(!window._backGuardInit){ window._backGuardInit = true; initBackButtonGuard(); }
   navigate('dashboard');
   setTimeout(()=>{
     const startToday = new Date(todayStr()+'T00:00:00').getTime();
@@ -1346,6 +1362,7 @@ function closeSidebar(){ document.getElementById('sidebar').classList.remove('op
 
 const VIEW_RENDERERS = {dashboard:renderDashboard, orders:renderOrders, queue:renderQueue, customers:renderCustomers, deposits:renderDeposits, services:renderServices, tracking:renderTracking, inventory:renderInventory, repairs:renderRepairs, kas:renderKas, report:renderReport, settings:renderSettings, kos:renderKos};
 function navigate(view){
+  if(view!==currentView){ viewHistory.push(view); pushNavGuard(); }
   currentView = view;
   closeSidebar();
   renderNav();
@@ -1354,6 +1371,52 @@ function navigate(view){
   updateSyncPill();
   VIEW_RENDERERS[view]();
 }
+function navigateSilent(view){
+  // Used internally when responding to a back-button press — switches the
+  // visible view WITHOUT pushing another history entry (that would defeat
+  // the point: we're already going backwards through the stack).
+  currentView = view;
+  closeSidebar();
+  renderNav();
+  document.getElementById('view-title').textContent = TITLES[view][0];
+  document.getElementById('view-sub').textContent = TITLES[view][1];
+  updateSyncPill();
+  VIEW_RENDERERS[view]();
+}
+
+/* ================= BACK-BUTTON / HISTORY HANDLING =================
+   Goal: pressing Android/browser back should never abruptly close the app.
+   Priority: (1) close an open modal/scanner, (2) step back to the previous
+   screen the person was actually on, (3) only at the very root does it ask
+   "yakin ingin keluar?" before actually allowing the app to exit. */
+let viewHistory = ['dashboard'];
+function pushNavGuard(){ try{ history.pushState({t:Date.now()}, '', location.href); }catch(e){} }
+function initBackButtonGuard(){
+  try{ history.replaceState({t:Date.now()}, '', location.href); }catch(e){}
+  pushNavGuard(); // one extra entry so the very first back press is ours to catch
+}
+window.addEventListener('popstate', ()=>{
+  // 1) Close a fullscreen scanner or modal first, if one is open.
+  const scannerOpen = document.getElementById('scanner-overlay');
+  if(scannerOpen){ closeCameraScanner(); pushNavGuard(); return; }
+  const modalOpen = document.querySelector('.overlay');
+  if(modalOpen){ closeModal(); pushNavGuard(); return; }
+  const sidebarOpen = document.getElementById('sidebar') && document.getElementById('sidebar').classList.contains('open');
+  if(sidebarOpen){ closeSidebar(); pushNavGuard(); return; }
+  // 2) Step back through in-app view history.
+  if(viewHistory.length > 1){
+    viewHistory.pop();
+    navigateSilent(viewHistory[viewHistory.length-1]);
+    pushNavGuard();
+    return;
+  }
+  // 3) Already at the root screen — confirm before actually exiting.
+  if(confirm('Yakin ingin keluar dari aplikasi?')){
+    history.back(); // let this one through — actually exits/minimizes the app
+  } else {
+    pushNavGuard(); // stay put
+  }
+});
 
 function openModal(html, wide){
   closeModal(); // always clear any leftover overlay first, so modals never stack up silently
@@ -1376,6 +1439,20 @@ function closeModal(){
 }
 function svcById(id){ return services.find(s=>s.id===id); }
 function svcDurationDays(s){ return (s && s.durationDays!=null) ? s.durationDays : 2; }
+// Groups services by groupName (new-style multi-tier services share a
+// groupName + tierLabel). Legacy items without a groupName are treated as
+// their own standalone "group of one" — fully backward compatible, nothing
+// about existing data changes or needs migrating.
+function serviceGroups(unitType){
+  const map = {};
+  const order = [];
+  services.filter(s=> unitType ? s.unitType===unitType : true).forEach(s=>{
+    const gname = s.groupName || s.name;
+    if(!map[gname]){ map[gname] = {groupName:gname, unitType:s.unitType, tiers:[]}; order.push(gname); }
+    map[gname].tiers.push(s);
+  });
+  return order.map(g=>map[g]);
+}
 function orderDeadline(o){
   const days = (o.estDays!=null) ? o.estDays : svcDurationDays(svcById(o.serviceId));
   return new Date(o.createdAt).getTime() + days*86400000;
@@ -1634,6 +1711,22 @@ function openDepositForm(customerId, type){
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Batal</button><button class="btn btn-primary" onclick="saveDeposit('${customerId}','${type}')">Simpan</button></div>
   `);
+}
+function deleteDepositLedgerEntry(customerId, entryId){
+  const c = customers.find(x=>x.id===customerId); if(!c || !c.depositLedger) return;
+  if(!confirm('Hapus catatan riwayat ini? Saldo saat ini tidak akan berubah.')) return;
+  snapshot();
+  c.depositLedger = c.depositLedger.filter(d=>d.id!==entryId);
+  DB.set('customers', customers);
+  toast('Riwayat dihapus'); openCustomerDetail(customerId);
+}
+function clearDepositLedger(customerId){
+  const c = customers.find(x=>x.id===customerId); if(!c) return;
+  if(!confirm('Hapus SEMUA riwayat deposit pelanggan ini? Saldo saat ini tidak akan berubah, cuma catatan riwayatnya yang dikosongkan.')) return;
+  snapshot();
+  c.depositLedger = [];
+  DB.set('customers', customers);
+  toast('Semua riwayat deposit dihapus'); openCustomerDetail(customerId);
 }
 function saveDeposit(customerId, type){
   const c = customers.find(x=>x.id===customerId); if(!c) return;
@@ -2034,13 +2127,19 @@ function openCustomerDetail(id){
         </div>
         ${(c.balance||0)>0?`<div style="font-size:11px;color:var(--accent-d);margin-top:6px;">Otomatis dipakai untuk melunasi pesanan baru pelanggan ini.</div>`:''}
         ${(c.depositLedger&&c.depositLedger.length)?`
-        <div style="margin-top:10px;border-top:1px dashed rgba(0,0,0,.15);padding-top:8px;max-height:140px;overflow-y:auto;">
-          ${c.depositLedger.slice().reverse().slice(0,10).map(d=>`
-            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--accent-d);padding:3px 0;">
+        <div style="margin-top:10px;border-top:1px dashed rgba(0,0,0,.15);padding-top:8px;max-height:180px;overflow-y:auto;">
+          ${c.depositLedger.slice().reverse().slice(0,20).map(d=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11.5px;color:var(--accent-d);padding:3px 0;">
               <span>${fmtDateTime(new Date(d.date).toISOString())} — ${d.note||(d.type==='in'?'Top up':d.type==='out'?'Tarik':'Terpakai')}</span>
-              <span class="mono">${d.type==='in'?'+':'−'}${rupiah(d.amount)}</span>
+              <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                <span class="mono">${d.type==='in'?'+':'−'}${rupiah(d.amount)}</span>
+                <button onclick="deleteDepositLedgerEntry('${c.id}','${d.id}')" title="Hapus riwayat ini" style="background:none;border:none;color:var(--accent-d);opacity:.6;cursor:pointer;padding:2px;">✕</button>
+              </span>
             </div>`).join('')}
-        </div>`:''}
+        </div>
+        <button class="btn btn-sm btn-ghost" style="margin-top:8px;color:var(--red);" onclick="clearDepositLedger('${c.id}')">${ICONS.trash} Hapus Semua Riwayat</button>
+        <div style="font-size:10.5px;color:var(--accent-d);margin-top:4px;opacity:.8;">Menghapus riwayat hanya membersihkan catatan/log — saldo saat ini di atas tidak ikut berubah. Untuk mengoreksi saldo, pakai tombol Tarik/Koreksi.</div>
+        `:''}
       </div>
 
       ${c.notes?`<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">📝 ${c.notes}</div>`:''}
@@ -2308,9 +2407,11 @@ function openNewOrder(prefill){
       </div>
       <div id="o-detail-fields">
         <div class="field"><label>Layanan utama (kiloan)</label>
-          <div class="chip-select" id="o-service">
-            ${services.filter(s=>s.unitType!=='pcs').map((s,i)=>`<button type="button" class="chip ${i===0?'active':''}" data-id="${s.id}" data-price="${s.price}" onclick="selectServiceChip(this)">${s.name}<span class="sub">${rupiah(s.price)}/kg</span></button>`).join('')}
+          <div class="chip-select" id="o-service-group">
+            ${serviceGroups('kg').map((g,i)=>`<button type="button" class="chip ${i===0?'active':''}" data-group="${g.groupName.replace(/"/g,'&quot;')}" onclick="selectServiceGroupChip('o',this)">${g.groupName}${g.tiers.length===1?`<span class="sub">${rupiah(g.tiers[0].price)}/kg</span>`:''}</button>`).join('')}
           </div>
+          <div class="chip-select" id="o-service-tier" style="margin-top:8px;"></div>
+          <div class="chip-select" id="o-service" style="display:none;"></div>
         </div>
         <div class="field-row">
           <div class="field"><label>Berat (kg)</label><input id="o-weight" type="number" step="0.1" placeholder="0.0" oninput="calcOrderTotal()"></div>
@@ -2319,7 +2420,7 @@ function openNewOrder(prefill){
         <div class="field">
           <label>+ Layanan/Item Tambahan (opsional) — selimut, sepatu, sprei, dll</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <select id="o-extra-svc" style="flex:2;min-width:150px;">${services.map(s=>`<option value="${s.id}">${s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</select>
+            <select id="o-extra-svc" style="flex:2;min-width:150px;">${serviceGroups().map(g=>`<optgroup label="${g.groupName}">${g.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99)).map(s=>`<option value="${s.id}">${s.tierLabel?g.groupName+' — '+s.tierLabel:s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</optgroup>`).join('')}</select>
             <input id="o-extra-qty" type="number" step="0.1" min="0.1" value="1" style="width:80px;" placeholder="Qty">
             <button type="button" class="btn btn-sm" onclick="addExtraItem('o')">+ Tambah</button>
           </div>
@@ -2348,6 +2449,8 @@ function openNewOrder(prefill){
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Batal</button><button class="btn btn-primary" onclick="saveOrder()">${ICONS.plus} Simpan Pesanan</button></div>
   `);
   renderExtraList('o');
+  const firstGroupBtn = document.querySelector('#o-service-group .chip');
+  if(firstGroupBtn) selectServiceGroupChip('o', firstGroupBtn);
   calcOrderTotal();
 }
 function filterCustomerSuggest(q){
@@ -2381,6 +2484,38 @@ function selectServiceChip(btn){
   btn.classList.add('active');
   document.getElementById('o-price').value = btn.dataset.price;
   calcOrderTotal();
+}
+function selectServiceGroupChip(prefix, btn){
+  btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  renderServiceTierChips(prefix, btn.dataset.group);
+}
+function renderServiceTierChips(prefix, groupName){
+  const group = serviceGroups('kg').find(g=>g.groupName===groupName);
+  const tierBox = document.getElementById(prefix+'-service-tier');
+  const hiddenBox = document.getElementById(prefix+'-service'); // saveOrder/saveEditOrderDetails reads .chip.active from here
+  if(!group){ if(tierBox) tierBox.innerHTML=''; if(hiddenBox) hiddenBox.innerHTML=''; return; }
+  const sorted = group.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99));
+  if(sorted.length<=1){
+    // Single-tier group — no need for a visible sub-picker, just wire the one option in directly.
+    if(tierBox) tierBox.innerHTML='';
+    if(hiddenBox) hiddenBox.innerHTML = `<button type="button" class="chip active" data-id="${sorted[0].id}" data-price="${sorted[0].price}"></button>`;
+  } else {
+    if(tierBox) tierBox.innerHTML = sorted.map((s,i)=>`<button type="button" class="chip ${i===0?'active':''}" data-id="${s.id}" data-price="${s.price}" onclick="selectServiceTierChip('${prefix}',this)">${s.tierLabel||s.name}<span class="sub">${rupiah(s.price)}/kg · ${fmtDuration(s.durationDays)}</span></button>`).join('');
+    if(hiddenBox) hiddenBox.innerHTML = `<button type="button" class="chip active" data-id="${sorted[0].id}" data-price="${sorted[0].price}"></button>`;
+  }
+  const priceInput = document.getElementById(prefix==='o'?'o-price':'eo-price');
+  if(priceInput) priceInput.value = sorted[0].price;
+  if(prefix==='o') calcOrderTotal(); else if(typeof calcEditOrderTotal==='function') calcEditOrderTotal();
+}
+function selectServiceTierChip(prefix, btn){
+  btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  const hiddenBox = document.getElementById(prefix+'-service');
+  if(hiddenBox) hiddenBox.innerHTML = `<button type="button" class="chip active" data-id="${btn.dataset.id}" data-price="${btn.dataset.price}"></button>`;
+  const priceInput = document.getElementById(prefix==='o'?'o-price':'eo-price');
+  if(priceInput) priceInput.value = btn.dataset.price;
+  if(prefix==='o') calcOrderTotal(); else if(typeof calcEditOrderTotal==='function') calcEditOrderTotal();
 }
 function addExtraItem(prefix){
   const sel = document.getElementById(prefix+'-extra-svc');
@@ -2746,7 +2881,7 @@ function openOrderDetail(id){
         ${o.discountAmount?`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;color:var(--red);"><span>Diskon${o.discountType==='percent'?' ('+o.discountValue+'%)':''}</span><span class="mono">-${rupiah(o.discountAmount)}</span></div>`:''}
       </div>
       <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px;">ESTIMASI SELESAI</div>
-      <div style="font-weight:600;margin-bottom:16px;">${o.estDays!=null?o.estDays+'x24 jam':'-'}</div>
+      <div style="font-weight:600;margin-bottom:16px;">${o.estDays!=null?fmtDuration(o.estDays):'-'}</div>
       <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;">PROGRES CUCIAN</div>
       <div class="wash-stepper">
         ${STATUSES.map((s,i)=>`
@@ -2799,9 +2934,11 @@ function editOrderDetails(id){
         <div class="field"><label>No. WhatsApp</label><input id="eo-phone" value="${o.phone||''}"></div>
       </div>
       <div class="field"><label>Layanan utama (kiloan)</label>
-        <div class="chip-select" id="eo-service">
-          ${services.filter(s=>s.unitType!=='pcs').map(s=>`<button type="button" class="chip ${s.id===o.serviceId?'active':''}" data-id="${s.id}" data-price="${s.price}" onclick="selectServiceChip2(this)">${s.name}<span class="sub">${rupiah(s.price)}/kg</span></button>`).join('')}
+        <div class="chip-select" id="eo-service-group">
+          ${serviceGroups('kg').map(g=>`<button type="button" class="chip ${g.tiers.some(t=>t.id===o.serviceId)?'active':''}" data-group="${g.groupName.replace(/"/g,'&quot;')}" onclick="selectServiceGroupChip('eo',this)">${g.groupName}${g.tiers.length===1?`<span class="sub">${rupiah(g.tiers[0].price)}/kg</span>`:''}</button>`).join('')}
         </div>
+        <div class="chip-select" id="eo-service-tier" style="margin-top:8px;"></div>
+        <div class="chip-select" id="eo-service" style="display:none;"></div>
       </div>
       <div class="field-row">
         <div class="field"><label>Berat (kg)</label><input id="eo-weight" type="number" step="0.1" value="${o.weightKg||''}" oninput="calcEditOrderTotal()"></div>
@@ -2810,7 +2947,7 @@ function editOrderDetails(id){
       <div class="field">
         <label>+ Layanan/Item Tambahan (opsional) — selimut, sepatu, sprei, dll</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <select id="eo-extra-svc" style="flex:2;min-width:150px;">${services.map(s=>`<option value="${s.id}">${s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</select>
+          <select id="eo-extra-svc" style="flex:2;min-width:150px;">${serviceGroups().map(g=>`<optgroup label="${g.groupName}">${g.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99)).map(s=>`<option value="${s.id}">${s.tierLabel?g.groupName+' — '+s.tierLabel:s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</optgroup>`).join('')}</select>
           <input id="eo-extra-qty" type="number" step="0.1" min="0.1" value="1" style="width:80px;" placeholder="Qty">
           <button type="button" class="btn btn-sm" onclick="addExtraItem('eo')">+ Tambah</button>
         </div>
@@ -2834,12 +2971,14 @@ function editOrderDetails(id){
     <div class="modal-foot"><button class="btn" onclick="openOrderDetail('${o.id}')">Batal</button><button class="btn btn-primary" onclick="saveEditOrderDetails('${o.id}')">Simpan Perubahan</button></div>
   `);
   renderExtraList('eo');
-  calcEditOrderTotal();
-}
-function selectServiceChip2(btn){
-  btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('eo-price').value = btn.dataset.price;
+  const eoGroupActive = document.querySelector('#eo-service-group .chip.active') || document.querySelector('#eo-service-group .chip');
+  if(eoGroupActive) selectServiceGroupChip('eo', eoGroupActive);
+  // Preserve the order's actual saved price/tier selection rather than
+  // defaulting to the group's first tier (renderServiceTierChips resets
+  // price to the first tier — override right after with the real values).
+  const eoTierBtn = document.querySelector(`#eo-service-tier .chip[data-id="${o.serviceId}"]`);
+  if(eoTierBtn) selectServiceTierChip('eo', eoTierBtn);
+  document.getElementById('eo-price').value = o.pricePerKg||'';
   calcEditOrderTotal();
 }
 function calcEditOrderTotal(){
@@ -3078,20 +3217,29 @@ function openCameraScanner(){
     const track = stream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     if(caps.torch){ const tb=document.getElementById('scan-torch-btn'); if(tb) tb.style.display='flex'; }
-    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d', {willReadFrequently:true});
+    let busy = false;
     function tick(){
       if(!scannerStream) return;
-      if(video.readyState===video.HAVE_ENOUGH_DATA){
-        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+      if(!busy && video.readyState===video.HAVE_ENOUGH_DATA && video.videoWidth){
+        busy = true;
+        // Downscale before decoding — running jsQR on the raw camera feed
+        // (often 1080p+) every single frame was heavy enough to visibly lag
+        // and miss detections, especially scanning a QR shown on another
+        // phone's screen (glare + the extra processing time compounding).
+        const MAX_SIDE = 900;
+        const scale = Math.min(1, MAX_SIDE / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.round(video.videoWidth*scale); canvas.height = Math.round(video.videoHeight*scale);
         ctx.drawImage(video,0,0,canvas.width,canvas.height);
         const img = ctx.getImageData(0,0,canvas.width,canvas.height);
-        const code = jsQR(img.data, img.width, img.height);
+        const code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
         if(code && code.data){
           if(navigator.vibrate) navigator.vibrate(80);
           processScannedCodeAuto(extractCode(code.data));
           closeCameraScanner();
           return;
         }
+        busy = false;
       }
       scannerRAF = requestAnimationFrame(tick);
     }
@@ -4202,30 +4350,41 @@ function removeEmp(i){ snapshot(); SETTINGS.employees.splice(i,1); DB.set('setti
 function refreshServiceView(){ if(currentView==='services') renderServices(); else renderSettings(); }
 function renderServices(){
   const el = document.getElementById('view');
+  const groups = serviceGroups();
   el.innerHTML = `
     <div class="toolbar">
       <div></div>
-      <button class="btn btn-sm btn-primary" onclick="editService(null)">${ICONS.plus} Tambah Layanan</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm" onclick="editService(null)">${ICONS.plus} Item Sederhana</button>
+        <button class="btn btn-sm btn-primary" onclick="editServiceGroup(null)">${ICONS.plus} Tambah Layanan (Grup Durasi)</button>
+      </div>
     </div>
+    <p style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;">💡 "Tambah Layanan" bikin satu layanan dengan sampai 4 pilihan kecepatan sekaligus (Reguler/Reguler+/Ekspres/Ekspres+) — lebih ringkas saat bikin pesanan. "Item Sederhana" untuk item yang cuma butuh satu harga saja (tanpa pilihan kecepatan).</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Nama Layanan</th><th>Keterangan</th><th>Satuan</th><th>Harga</th><th>Estimasi Selesai</th><th></th></tr></thead>
+      <thead><tr><th>Nama Layanan</th><th>Satuan</th><th>Pilihan Kecepatan &amp; Harga</th><th></th></tr></thead>
       <tbody>
-        ${services.map(s=>`
+        ${groups.map(g=>{
+          const isGrouped = g.tiers.length>1 || g.tiers[0].tierKey;
+          const sorted = g.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99));
+          return `
           <tr>
-            <td style="font-weight:600;">${s.name}</td>
-            <td style="color:var(--muted);font-size:12.5px;">${s.note||'-'}</td>
-            <td>${s.unitType==='pcs'?'<span class="badge b-teal">Satuan</span>':'<span class="badge b-gray">Kiloan</span>'}</td>
-            <td class="mono">${rupiah(s.price)}${s.unitType==='pcs'?'/pcs':'/kg'}</td>
-            <td class="mono">${svcDurationDays(s)}x24 jam</td>
-            <td style="text-align:right;white-space:nowrap;">
-              <button class="btn btn-sm btn-ghost" onclick="editService('${s.id}')">${ICONS.edit}</button>
-              <button class="btn btn-sm btn-ghost" onclick="deleteService('${s.id}')">${ICONS.trash}</button>
+            <td style="font-weight:600;">${g.groupName}${g.tiers[0].note?`<div style="font-size:11px;color:var(--muted);font-weight:400;">${g.tiers[0].note}</div>`:''}</td>
+            <td>${g.unitType==='pcs'?'<span class="badge b-teal">Satuan</span>':'<span class="badge b-gray">Kiloan</span>'}</td>
+            <td>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                ${sorted.map(s=>`<span class="badge b-amber" style="font-weight:600;">${s.tierLabel||s.name}: ${rupiah(s.price)}${g.unitType==='pcs'?'/pcs':'/kg'} · ${fmtDuration(s.durationDays)}</span>`).join('')}
+              </div>
             </td>
-          </tr>`).join('') || '<tr class="empty-row"><td colspan="6">Belum ada jenis layanan</td></tr>'}
+            <td style="text-align:right;white-space:nowrap;">
+              <button class="btn btn-sm btn-ghost" onclick="${isGrouped?`editServiceGroup('${g.groupName.replace(/'/g,"\\'")}')`:`editService('${g.tiers[0].id}')`}">${ICONS.edit}</button>
+              <button class="btn btn-sm btn-ghost" onclick="${isGrouped?`deleteServiceGroup('${g.groupName.replace(/'/g,"\\'")}')`:`deleteService('${g.tiers[0].id}')`}">${ICONS.trash}</button>
+            </td>
+          </tr>`;
+        }).join('') || '<tr class="empty-row"><td colspan="4">Belum ada jenis layanan</td></tr>'}
       </tbody>
     </table></div>
     <div class="card" style="margin-top:16px;background:var(--surface-alt);border:none;">
-      <p style="font-size:12.5px;color:var(--muted);margin:0;">Harga di sini otomatis dipakai sebagai pilihan cepat saat membuat pesanan baru. Layanan "Kiloan" dihitung per kg (cth. cuci reguler), layanan "Satuan" dihitung per item (cth. selimut, sepatu, sprei). Ubah harga kapan saja bila ada kenaikan, harga pesanan yang sudah tersimpan sebelumnya tidak akan berubah.</p>
+      <p style="font-size:12.5px;color:var(--muted);margin:0;">Harga di sini otomatis dipakai sebagai pilihan cepat saat membuat pesanan baru. Layanan "Kiloan" dihitung per kg, "Satuan" dihitung per item. Ubah harga kapan saja — harga pesanan yang sudah tersimpan sebelumnya tidak akan berubah.</p>
     </div>
   `;
 }
@@ -4269,6 +4428,74 @@ function deleteService(id){
   if(!confirm('Hapus layanan ini?')) return;
   snapshot();
   services = services.filter(s=>s.id!==id); DB.set('services', services); refreshServiceView();
+}
+function editServiceGroup(groupName){
+  const existing = groupName ? services.filter(s=>(s.groupName||s.name)===groupName) : [];
+  const unitType = existing[0]?.unitType || 'kg';
+  const baseName = groupName || '';
+  const note = existing[0]?.note || '';
+  openModal(`
+    <div class="modal-head"><h3>${groupName?'Ubah':'Tambah'} Layanan (Grup Durasi)</h3><button class="x-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nama Layanan Dasar</label><input id="sg-name" value="${baseName.replace(/"/g,'&quot;')}" placeholder="cth. Cuci Setrika"></div>
+      <div class="field-row">
+        <div class="field"><label>Satuan</label><select id="sg-unit"><option value="kg" ${unitType==='kg'?'selected':''}>Kiloan (per kg)</option><option value="pcs" ${unitType==='pcs'?'selected':''}>Satuan (per item)</option></select></div>
+        <div class="field"><label>Keterangan (opsional)</label><input id="sg-note" value="${note.replace(/"/g,'&quot;')}" placeholder="cth. cuci + setrika"></div>
+      </div>
+      <label style="font-size:12.5px;font-weight:600;display:block;margin:14px 0 8px;">Pilihan Kecepatan (isi harga yang ditawarkan saja, kosongkan yang tidak dipakai)</label>
+      <div id="sg-tiers">
+        ${TIER_PRESETS.map(t=>{
+          const match = existing.find(s=>s.tierKey===t.key);
+          const checked = !!match;
+          return `
+          <div class="card" style="padding:10px 12px;margin-bottom:8px;background:var(--surface-alt);border:none;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-bottom:${checked?'8px':'0'};">
+              <input type="checkbox" class="sg-tier-check" data-key="${t.key}" style="width:auto;" ${checked?'checked':''} onchange="this.closest('.card').querySelector('.sg-tier-fields').style.display=this.checked?'grid':'none'">
+              ${t.label}
+            </label>
+            <div class="sg-tier-fields" style="display:${checked?'grid':'none'};grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="field" style="margin-bottom:0;"><label style="font-size:11px;">Durasi (jam)</label><input type="number" class="sg-tier-hours" data-key="${t.key}" value="${match?Math.round((match.durationDays||0)*24):t.hours}"></div>
+              <div class="field" style="margin-bottom:0;"><label style="font-size:11px;">Harga</label><input type="number" class="sg-tier-price" data-key="${t.key}" value="${match?match.price:''}" placeholder="0"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="modal-foot">
+      ${groupName?`<button class="btn btn-danger" onclick="deleteServiceGroup('${groupName.replace(/'/g,"\\'")}');closeModal()">Hapus</button>`:''}
+      <button class="btn" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" onclick="saveServiceGroup(${groupName?`'${groupName.replace(/'/g,"\\'")}'`:'null'})">Simpan</button>
+    </div>
+  `);
+}
+function saveServiceGroup(oldGroupName){
+  const name = document.getElementById('sg-name').value.trim();
+  if(!name){ toast('Nama layanan wajib diisi','⚠️'); return; }
+  const unitType = document.getElementById('sg-unit').value;
+  const note = document.getElementById('sg-note').value.trim();
+  const checks = [...document.querySelectorAll('.sg-tier-check')];
+  const activeTiers = checks.filter(c=>c.checked).map(c=>{
+    const key = c.dataset.key;
+    const preset = TIER_PRESETS.find(t=>t.key===key);
+    const hours = +document.querySelector(`.sg-tier-hours[data-key="${key}"]`).value || preset.hours;
+    const price = +document.querySelector(`.sg-tier-price[data-key="${key}"]`).value || 0;
+    return {tierKey:key, tierLabel:preset.label, price, durationDays: hours/24};
+  });
+  if(!activeTiers.length){ toast('Pilih minimal satu kecepatan & isi harganya','⚠️'); return; }
+  if(activeTiers.some(t=>t.price<=0)){ toast('Harga tiap kecepatan yang dicentang wajib diisi','⚠️'); return; }
+  snapshot();
+  if(oldGroupName) services = services.filter(s=>(s.groupName||s.name)!==oldGroupName);
+  activeTiers.forEach(t=>{
+    services.push({id:uid('svc_'), name, groupName:name, tierKey:t.tierKey, tierLabel:t.tierLabel, note, price:t.price, durationDays:t.durationDays, unitType});
+  });
+  DB.set('services', services); closeModal(); toast('Layanan tersimpan'); refreshServiceView();
+}
+function deleteServiceGroup(groupName){
+  const remaining = services.filter(s=>(s.groupName||s.name)!==groupName);
+  if(!remaining.length){ toast('Minimal harus ada 1 layanan','⚠️'); return; }
+  if(!confirm('Hapus layanan "'+groupName+'" beserta semua pilihan kecepatannya?')) return;
+  snapshot();
+  services = remaining; DB.set('services', services); refreshServiceView();
 }
 function resyncAllOrders(){
   if(!fbReady){ toast('Sambungkan Firebase dulu','⚠️'); return; }
@@ -4377,7 +4604,7 @@ function exportCustomersExcel(){
   XLSX.writeFile(wb, 'Data-Pelanggan-Laundry.xlsx'); toast('Excel diunduh');
 }
 function exportServicesExcel(){
-  const rows = services.map(s=>({Nama:s.name, Keterangan:s.note||'', Satuan:s.unitType==='pcs'?'Per Item':'Per Kg', Harga:s.price, EstimasiSelesai:svcDurationDays(s)+'x24 jam'}));
+  const rows = services.map(s=>({Nama:s.groupName?s.groupName+' — '+s.tierLabel:s.name, Keterangan:s.note||'', Satuan:s.unitType==='pcs'?'Per Item':'Per Kg', Harga:s.price, EstimasiSelesai:fmtDuration(svcDurationDays(s))}));
   const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Layanan');
   XLSX.writeFile(wb, 'Data-Layanan-Laundry.xlsx'); toast('Excel diunduh');
@@ -4386,7 +4613,7 @@ function exportAllExcel(){
   const wb = XLSX.utils.book_new();
   const orderRows = orders.map(o=>({Kode:o.code, Tanggal:fmtDateTime(o.createdAt), Pelanggan:o.customer, HP:o.phone, Layanan:orderItems(o).map(it=>it.serviceName+' ('+it.qty+(it.unit==='pcs'?' pcs':' kg')+')').join(', '), Subtotal:o.subtotal!=null?o.subtotal:o.total, Diskon:o.discountAmount||0, Total:o.total, Status:STATUSES.find(s=>s.k===o.status).l, Lunas:o.paid?'Ya':'Belum', MetodeBayar:o.paid?(PAYMENT_METHODS.find(p=>p.k===o.paymentMethod)||{}).l||'-':'-'}));
   const custRows = customers.map(c=>({Nama:c.name, HP:c.phone, Langganan:c.subscriber?'Ya':'Tidak', TanggalGabung:c.joinDate}));
-  const svcRows = services.map(s=>({Nama:s.name, Keterangan:s.note||'', Satuan:s.unitType==='pcs'?'Per Item':'Per Kg', Harga:s.price, EstimasiSelesai:svcDurationDays(s)+'x24 jam'}));
+  const svcRows = services.map(s=>({Nama:s.groupName?s.groupName+' — '+s.tierLabel:s.name, Keterangan:s.note||'', Satuan:s.unitType==='pcs'?'Per Item':'Per Kg', Harga:s.price, EstimasiSelesai:fmtDuration(svcDurationDays(s))}));
   const kasRows = kas.map(k=>({Tanggal:k.date, Jenis:k.type==='in'?'Masuk':'Keluar', Kategori:k.category, Keterangan:k.desc, Jumlah:k.amount}));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(orderRows), 'Pesanan');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(custRows), 'Pelanggan');
