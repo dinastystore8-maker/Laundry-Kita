@@ -536,6 +536,7 @@ const PAYMENT_METHODS = [
   {k:'cash', l:'Tunai'},
   {k:'transfer', l:'Transfer'},
   {k:'qris', l:'QRIS'},
+  {k:'deposit', l:'Saldo Deposit'},
 ];
 const REMINDER_FREQ = [
   {k:'weekly', l:'Per Minggu', days:7},
@@ -624,6 +625,7 @@ const ICONS = {
   inventory:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
   repair:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2 2.8-2.8Z"/></svg>',
   kas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v.01M18 18v-.01"/></svg>',
+  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H8a2 2 0 0 0 0 4h11"/></svg>',
   report:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></svg>',
   nota:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l3 3v17l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
   scan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5a1 1 0 0 1 1-1h2M4 17v2a1 1 0 0 0 1 1h2M20 7V5a1 1 0 0 0-1-1h-2M20 17v2a1 1 0 0 1-1 1h-2M3 12h18"/></svg>',
@@ -650,6 +652,7 @@ const NAV = [
   {k:'orders', l:'Pesanan', icon:ICONS.orders},
   {k:'queue', l:'Antrian & Pengantaran', icon:ICONS.bell},
   {k:'customers', l:'Pelanggan', icon:ICONS.customers},
+  {k:'deposits', l:'Deposit Pelanggan', icon:ICONS.wallet},
   {k:'services', l:'Layanan & Harga', icon:ICONS.tag},
   {k:'tracking', l:'Tracking / Scan', icon:ICONS.shirtWash},
   {k:'inventory', l:'Inventaris', icon:ICONS.inventory},
@@ -664,6 +667,7 @@ const TITLES = {
   orders:['Pesanan','Kelola pesanan masuk & kalkulasi kiloan'],
   queue:['Antrian & Pengantaran','Urutan servis prioritas & jadwal pengantaran/pengambilan'],
   customers:['Pelanggan','Daftar pelanggan, status langganan & tagihan belum lunas'],
+  deposits:['Deposit Pelanggan','Saldo titipan pelanggan — otomatis dipakai untuk melunasi pesanan baru'],
   services:['Layanan & Harga','Tambah, ubah, atau hapus jenis layanan beserta harganya'],
   tracking:['Tracking & Scan Progres','Perbarui tahap proses via barcode atau manual'],
   inventory:['Inventaris','Stok bahan & perlengkapan laundry'],
@@ -1263,6 +1267,7 @@ const NAV_SLOT_OPTIONS = [
   {k:'orders', l:'Pesanan', icon:ICONS.orders},
   {k:'orders-new', l:'Pesanan Baru', icon:ICONS.plus},
   {k:'customers', l:'Pelanggan', icon:ICONS.customers},
+  {k:'deposits', l:'Deposit Pelanggan', icon:ICONS.wallet},
   {k:'tracking', l:'Tracking / Scan', icon:ICONS.shirtWash},
   {k:'kas', l:'Kas Laundry', icon:ICONS.kas},
   {k:'kos', l:'Penjaga Kos', icon:ICONS.customers},
@@ -1339,7 +1344,7 @@ function renderNav(){
 function openSidebar(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('scrim').classList.add('show'); }
 function closeSidebar(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('scrim').classList.remove('show'); }
 
-const VIEW_RENDERERS = {dashboard:renderDashboard, orders:renderOrders, queue:renderQueue, customers:renderCustomers, services:renderServices, tracking:renderTracking, inventory:renderInventory, repairs:renderRepairs, kas:renderKas, report:renderReport, settings:renderSettings, kos:renderKos};
+const VIEW_RENDERERS = {dashboard:renderDashboard, orders:renderOrders, queue:renderQueue, customers:renderCustomers, deposits:renderDeposits, services:renderServices, tracking:renderTracking, inventory:renderInventory, repairs:renderRepairs, kas:renderKas, report:renderReport, settings:renderSettings, kos:renderKos};
 function navigate(view){
   currentView = view;
   closeSidebar();
@@ -1544,6 +1549,10 @@ function openCustomerForm(id){
     <div class="modal-body">
       <div class="field"><label>Nama</label><input id="c-name" value="${c.name}" placeholder="Nama pelanggan"></div>
       <div class="field"><label>No. WhatsApp</label><input id="c-phone" value="${c.phone}" placeholder="08xxxxxxxxxx"></div>
+      ${id?`<div class="card" style="background:var(--accent-l);border:none;padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div><div style="font-size:10.5px;color:var(--accent-d);font-weight:700;">💰 SALDO DEPOSIT SAAT INI</div><div class="mono" style="font-weight:700;font-size:16px;color:var(--accent-d);">${rupiah(c.balance||0)}</div></div>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openDepositForm('${id}','in')">+ Top Up</button>
+      </div>`:''}
       <div class="field"><label><input type="checkbox" id="c-sub" ${c.subscriber?'checked':''} style="width:auto;display:inline;margin-right:6px;">Pelanggan berlangganan (rutin)</label></div>
       <div class="field">
         <label>Penghuni Kos (opsional)</label>
@@ -1608,6 +1617,41 @@ function toggleSubscriber(id){
   const c = customers.find(x=>x.id===id); if(!c) return;
   snapshot();
   c.subscriber = !c.subscriber; DB.set('customers', customers); renderCustomers();
+}
+/* =========================================================================
+   DEPOSIT PELANGGAN (saldo, otomatis dipakai untuk melunasi pesanan baru)
+========================================================================= */
+function openDepositForm(customerId, type){
+  const c = customers.find(x=>x.id===customerId); if(!c) return;
+  const isIn = type==='in';
+  openModal(`
+    <div class="modal-head"><h3>${isIn?'Tambah':'Tarik/Koreksi'} Saldo Deposit</h3><button class="x-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">${c.name} — saldo saat ini: <b class="mono">${rupiah(c.balance||0)}</b></div>
+      <div class="field"><label>Jumlah</label><input id="dep-amount" type="number" min="1" placeholder="0"></div>
+      <div class="field"><label>Catatan (opsional)</label><input id="dep-note" placeholder="${isIn?'cth. Titip deposit awal bulan':'cth. Ditarik tunai / koreksi salah input'}"></div>
+      <div style="font-size:11px;color:var(--muted);">💡 Ini uang titipan pelanggan, jadi <b>tidak</b> tercatat di Kas Laundry. Kas baru mencatat pemasukan otomatis nanti, tepat saat saldo ini benar-benar dipakai membayar pesanan.</div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Batal</button><button class="btn btn-primary" onclick="saveDeposit('${customerId}','${type}')">Simpan</button></div>
+  `);
+}
+function saveDeposit(customerId, type){
+  const c = customers.find(x=>x.id===customerId); if(!c) return;
+  const amount = +document.getElementById('dep-amount').value || 0;
+  if(amount<=0){ toast('Jumlah tidak valid','⚠️'); return; }
+  if(type==='out' && amount > (c.balance||0)){ toast('⚠️ Jumlah melebihi saldo deposit yang tersedia','⚠️'); return; }
+  snapshot();
+  const note = document.getElementById('dep-note').value.trim();
+  c.balance = Math.round((c.balance||0) + (type==='in'?amount:-amount));
+  c.depositLedger = c.depositLedger || [];
+  c.depositLedger.push({id:uid('dep_'), date:Date.now(), type, amount, note});
+  DB.set('customers', customers);
+  // Deliberately NOT recorded in Kas Laundry — deposit money belongs to the
+  // customer (titipan), not business revenue. It only becomes real income,
+  // and only then gets recorded in Kas, at the moment it's actually spent
+  // paying for an order (see saveOrder / confirmEditPayment).
+  toast(type==='in'?'Deposit ditambahkan':'Saldo deposit dikurangi');
+  closeModal(); openCustomerDetail(customerId);
 }
 /* =========================================================================
    KOS & KOMISI PENJAGA KOS
@@ -1855,7 +1899,7 @@ function renderCustomerTable(){
     const kos = c.kosId ? kosList.find(k=>k.id===c.kosId) : null;
     return `
     <tr style="cursor:pointer;" onclick="openCustomerDetail('${c.id}')">
-      <td style="font-weight:600;">${c.name}</td>
+      <td style="font-weight:600;">${c.name}${(c.balance||0)>0?` <span class="badge b-teal" title="Saldo Deposit" style="font-weight:600;">💰 ${rupiah(c.balance)}</span>`:''}</td>
       <td class="mono">${c.phone}</td>
       <td>${kos?`<span class="badge b-teal">${kos.name}</span>`:'<span style="color:var(--muted);font-size:12px;">-</span>'}</td>
       <td><button class="badge ${c.subscriber?'b-green':'b-gray'}" style="border:none;" onclick="event.stopPropagation();toggleSubscriber('${c.id}')">${c.subscriber?'Langganan':'Baru'}</button></td>
@@ -1870,6 +1914,62 @@ function renderCustomerTable(){
     </tr>`;
   }).join('') || '<tr class="empty-row"><td colspan="8">Belum ada data pelanggan. Data akan otomatis muncul saat ada pesanan baru dengan no. HP, atau tambahkan manual.</td></tr>';
 }
+
+/* ================= DEPOSIT PELANGGAN (dedicated overview page) ================= */
+let depositSort = 'balance-desc';
+function renderDeposits(){
+  const el = document.getElementById('view');
+  const withDeposit = customers.filter(c => (c.balance||0)!==0 || (c.depositLedger&&c.depositLedger.length));
+  const totalOutstanding = customers.reduce((s,c)=>s+(c.balance||0), 0);
+  let list = withDeposit.slice();
+  if(depositSort==='balance-desc') list.sort((a,b)=>(b.balance||0)-(a.balance||0));
+  else if(depositSort==='balance-asc') list.sort((a,b)=>(a.balance||0)-(b.balance||0));
+  else if(depositSort==='az') list.sort((a,b)=>a.name.localeCompare(b.name,'id'));
+  else if(depositSort==='recent') list.sort((a,b)=>{
+    const la = a.depositLedger&&a.depositLedger.length ? a.depositLedger[a.depositLedger.length-1].date : 0;
+    const lb = b.depositLedger&&b.depositLedger.length ? b.depositLedger[b.depositLedger.length-1].date : 0;
+    return lb-la;
+  });
+  el.innerHTML = `
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      <div class="card stat"><div class="label">Total Saldo Titipan (Semua Pelanggan)</div><div class="value" style="color:var(--accent-d)">${rupiah(totalOutstanding)}</div></div>
+      <div class="card stat"><div class="label">Pelanggan dengan Saldo Aktif</div><div class="value">${customers.filter(c=>(c.balance||0)>0).length}</div></div>
+      <div class="card stat"><div class="label">Total Pernah Top Up</div><div class="value">${withDeposit.length}</div></div>
+    </div>
+    <div class="card" style="background:var(--surface-alt);border:none;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);">
+      ℹ️ Saldo deposit adalah uang titipan pelanggan (bukan pendapatan laundry), jadi tidak ikut tercatat di Kas Laundry saat dititipkan/ditarik. Baru tercatat sebagai pemasukan resmi tepat saat dipakai membayar pesanan.
+    </div>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <select style="width:auto;padding:9px 30px 9px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:13px;color:var(--ink);" onchange="depositSort=this.value;renderDeposits()">
+          <option value="balance-desc" ${depositSort==='balance-desc'?'selected':''}>Saldo: Terbesar dulu</option>
+          <option value="balance-asc" ${depositSort==='balance-asc'?'selected':''}>Saldo: Terkecil dulu</option>
+          <option value="az" ${depositSort==='az'?'selected':''}>Nama A-Z</option>
+          <option value="recent" ${depositSort==='recent'?'selected':''}>Mutasi Terbaru</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Pelanggan</th><th>No. WhatsApp</th><th>Saldo Saat Ini</th><th>Mutasi Terakhir</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(c=>{
+          const lastTx = c.depositLedger && c.depositLedger.length ? c.depositLedger[c.depositLedger.length-1] : null;
+          return `<tr>
+            <td style="font-weight:600;cursor:pointer;" onclick="openCustomerDetail('${c.id}')">${c.name}</td>
+            <td class="mono" style="font-size:12px;color:var(--muted);">${c.phone||'-'}</td>
+            <td class="mono" style="font-weight:700;color:${(c.balance||0)>0?'var(--accent-d)':'var(--muted)'};">${rupiah(c.balance||0)}</td>
+            <td style="font-size:11.5px;color:var(--muted);">${lastTx?fmtDateTime(new Date(lastTx.date).toISOString())+' — '+(lastTx.type==='in'?'+':lastTx.type==='out'?'−':'terpakai')+rupiah(lastTx.amount):'-'}</td>
+            <td style="text-align:right;white-space:nowrap;">
+              <button class="btn btn-sm btn-primary" onclick="openDepositForm('${c.id}','in')">+ Top Up</button>
+              <button class="btn btn-sm btn-ghost" onclick="openCustomerDetail('${c.id}')">${ICONS.edit}</button>
+            </td>
+          </tr>`;
+        }).join('') || `<tr class="empty-row"><td colspan="5">Belum ada pelanggan yang titip deposit. Buka data pelanggan &amp; klik "+ Tambah" di kartu Saldo Deposit untuk mulai.</td></tr>`}
+      </tbody>
+    </table></div>
+  `;
+}
+
 let custDetailSort = 'newest';
 function sortCustOrders(list){
   const arr = list.slice();
@@ -1920,6 +2020,29 @@ function openCustomerDetail(id){
         <div><div style="font-size:11px;color:var(--muted);font-weight:600;">TOTAL BELANJA (LUNAS)</div><div class="mono" style="font-weight:700;">${rupiah(totalSpent)}</div></div>
       </div>
       ${info.count?`<div class="card" style="background:var(--amber-l);border:none;padding:10px 12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:12.5px;color:#92400E;font-weight:600;">${info.count} tagihan belum lunas · ${rupiah(info.total)}</span><button class="btn btn-sm btn-navy" onclick="openFollowUp('${c.phone}')">Follow Up</button></div>`:''}
+
+      <div class="card" style="background:var(--accent-l);border:none;padding:12px 14px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:11px;color:var(--accent-d);font-weight:700;">💰 SALDO DEPOSIT</div>
+            <div class="mono" style="font-weight:700;font-size:19px;color:var(--accent-d);">${rupiah(c.balance||0)}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm btn-primary" onclick="openDepositForm('${c.id}','in')">+ Tambah</button>
+            ${(c.balance||0)>0?`<button class="btn btn-sm" onclick="openDepositForm('${c.id}','out')">Tarik/Koreksi</button>`:''}
+          </div>
+        </div>
+        ${(c.balance||0)>0?`<div style="font-size:11px;color:var(--accent-d);margin-top:6px;">Otomatis dipakai untuk melunasi pesanan baru pelanggan ini.</div>`:''}
+        ${(c.depositLedger&&c.depositLedger.length)?`
+        <div style="margin-top:10px;border-top:1px dashed rgba(0,0,0,.15);padding-top:8px;max-height:140px;overflow-y:auto;">
+          ${c.depositLedger.slice().reverse().slice(0,10).map(d=>`
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--accent-d);padding:3px 0;">
+              <span>${fmtDateTime(new Date(d.date).toISOString())} — ${d.note||(d.type==='in'?'Top up':d.type==='out'?'Tarik':'Terpakai')}</span>
+              <span class="mono">${d.type==='in'?'+':'−'}${rupiah(d.amount)}</span>
+            </div>`).join('')}
+        </div>`:''}
+      </div>
+
       ${c.notes?`<div style="font-size:12px;color:var(--muted);margin-bottom:16px;">📝 ${c.notes}</div>`:''}
 
       <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
@@ -2147,7 +2270,7 @@ function exportOrdersMonthExcel(){
     Layanan:orderItems(o).map(it=>it.serviceName+' ('+it.qty+(it.unit==='pcs'?'pcs':'kg')+')').join(', '),
     BeratKg:o.weightKg||0, Subtotal:o.subtotal!=null?o.subtotal:o.total, Diskon:o.discountAmount||0, Total:o.total,
     Status:(STATUSES.find(s=>s.k===o.status)||{}).l||o.status, Lunas:o.paid?'Ya':'Belum',
-    MetodeBayar:o.paid?(PAYMENT_METHODS.find(p=>p.k===o.paymentMethod)||{}).l||'-':'-', Catatan:o.notes||'', RincianSortir:o.sortNote||''
+    MetodeBayar:o.paid?(PAYMENT_METHODS.find(p=>p.k===o.paymentMethod)||{}).l||'-':'-', DepositTerpakai:o.depositUsed||0, Catatan:o.notes||'', RincianSortir:o.sortNote||''
   }));
   const totalOmset = list.reduce((s,o)=>s+(o.total||0),0);
   const totalLunas = list.filter(o=>o.paid).reduce((s,o)=>s+(o.total||0),0);
@@ -2235,7 +2358,7 @@ function filterCustomerSuggest(q){
   if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }
   box.innerHTML = matches.map(c=>`
     <div style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px;" onmousedown="pickOrderCustomer('${c.id}')">
-      <b>${c.name}</b><div style="font-size:11.5px;color:var(--muted);">${c.phone||'-'}${c.subscriber?' · Langganan':''}</div>
+      <b>${c.name}</b>${(c.balance||0)>0?` <span style="color:var(--accent-d);font-weight:600;">💰 ${rupiah(c.balance)}</span>`:''}<div style="font-size:11.5px;color:var(--muted);">${c.phone||'-'}${c.subscriber?' · Langganan':''}</div>
     </div>`).join('');
   box.style.display = 'block';
 }
@@ -2245,6 +2368,7 @@ function pickOrderCustomer(id){
   document.getElementById('o-phone').value = c.phone||'';
   document.getElementById('o-cust-search').value = c.name;
   document.getElementById('o-cust-suggest').style.display='none';
+  if((c.balance||0)>0) toast('💰 Pelanggan ini punya saldo deposit '+rupiah(c.balance)+' — otomatis dipakai untuk pesanan ini kalau mencukupi');
 }
 function toggleQuickOrder(on){
   document.getElementById('o-detail-fields').style.display = on?'none':'block';
@@ -2328,9 +2452,29 @@ function saveOrder(){
   recalcOrderTotal(o);
   orders.push(o); DB.set('orders', orders);
   upsertCustomerFromOrder(o);
-  if(o.paid){ kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:o.total, desc:'Pesanan '+code+' ('+(PAYMENT_METHODS.find(p=>p.k===payMethod)||{}).l+')', orderId:o.id}); DB.set('kas', kas); }
+  if(!o.paid && o.phone){
+    const cust = custByPhone(o.phone);
+    if(cust && (cust.balance||0) > 0){
+      const applied = Math.min(cust.balance, o.total);
+      if(applied > 0){
+        cust.balance = Math.round(cust.balance - applied);
+        o.depositUsed = applied;
+        cust.depositLedger = cust.depositLedger || [];
+        cust.depositLedger.push({id:uid('dep_'), date:Date.now(), type:'used', amount:applied, note:'Dipakai untuk pesanan '+code, orderId:o.id});
+        if(applied >= o.total){ o.paid = true; o.paymentMethod = 'deposit'; }
+        DB.set('customers', customers);
+        DB.set('orders', orders);
+        // This is the moment the money actually becomes the business's own
+        // revenue (was just customer titipan until now), so it's recorded
+        // in Kas Laundry right here — not when the deposit was topped up.
+        kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:applied, desc:'Pesanan '+code+' (Saldo Deposit)', orderId:o.id, source:'deposit'});
+        DB.set('kas', kas);
+      }
+    }
+  }
+  if(o.paid && o.paymentMethod!=='deposit'){ kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:o.total, desc:'Pesanan '+code+' ('+(PAYMENT_METHODS.find(p=>p.k===payMethod)||{}).l+')', orderId:o.id, source:'cash'}); DB.set('kas', kas); }
   syncOrderToCloud(o);
-  closeModal(); toast(isQuick ? 'Pesanan '+code+' dicatat — lengkapi detail nanti' : 'Pesanan '+code+' tersimpan');
+  closeModal(); toast(o.depositUsed ? (o.paid?'Pesanan '+code+' lunas otomatis dari saldo deposit 💰':'Pesanan '+code+' tersimpan — Rp'+o.depositUsed.toLocaleString('id-ID')+' otomatis dipakai dari deposit') : (isQuick ? 'Pesanan '+code+' dicatat — lengkapi detail nanti' : 'Pesanan '+code+' tersimpan'));
   navigate('orders');
   setTimeout(()=>openOrderDetail(o.id), 150);
 }
@@ -2591,6 +2735,7 @@ function openOrderDetail(id){
         <div><div style="font-size:11px;color:var(--muted);font-weight:600;">PELANGGAN</div><div style="font-weight:600;">${o.customer}</div><div style="font-size:12px;color:var(--muted)">${o.phone||'-'}</div></div>
         <div><div style="font-size:11px;color:var(--muted);font-weight:600;">TOTAL</div><div class="mono" style="font-weight:700;font-size:16px;">${rupiah(o.total)}</div><div style="font-size:12px;">${o.paid?`<span class="badge b-green">Lunas · ${(PAYMENT_METHODS.find(p=>p.k===o.paymentMethod)||{}).l||'-'}</span>`:'<span class="badge b-amber">Belum bayar</span>'}</div></div>
       </div>
+      ${o.depositUsed?`<div class="card" style="background:var(--accent-l);border:none;padding:10px 12px;margin-bottom:16px;font-size:12.5px;color:var(--accent-d);">💰 Rp${o.depositUsed.toLocaleString('id-ID')} dibayar otomatis dari saldo deposit${!o.paid?' — sisa tagihan: <b>'+rupiah(o.total-o.depositUsed)+'</b>':''}</div>`:''}
       <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;">RINCIAN LAYANAN</div>
       <div style="margin-bottom:16px;">
         ${orderItems(o).map(it=>`
@@ -2631,14 +2776,14 @@ function openOrderDetail(id){
     </div>
     <div class="modal-foot"><button class="btn" onclick="openNota('${o.id}')">${ICONS.nota} Cetak Nota</button><button class="btn btn-primary" onclick="closeModal()">Selesai</button></div>
   `);
-  setTimeout(()=>{
+  (function(){
     const box = document.getElementById('qr-'+o.id);
     if(!box) return;
     try{
       if(typeof QRCode === 'undefined') throw new Error('QRCode lib not loaded');
       new QRCode(box, {text: fbReady?trackUrl:o.code, width:150, height:150, colorDark:'#0F1C33', correctLevel: QRCode.CorrectLevel.M});
     }catch(e){ box.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:20px;max-width:132px;">QR tidak dapat dimuat (perlu koneksi internet saat pertama kali dibuka)</div>'; }
-  }, 30);
+  })();
 }
 let editOrderExtras = [];
 function editOrderDetails(id){
@@ -2785,16 +2930,46 @@ function confirmEditPayment(id){
   const o = orders.find(x=>x.id===id); if(!o) return;
   snapshot();
   const status = document.getElementById('mp-status').value;
-  const existingKas = kas.find(k=>k.orderId===o.id && k.category==='Pembayaran Pesanan');
+  // Deposit-sourced and cash-sourced (cash/transfer/qris) revenue for this
+  // order are tracked as separate kas entries, since an order can be paid
+  // partly from deposit (recognized as revenue immediately when spent) and
+  // partly from a later cash/transfer/qris payment for the remainder.
+  const depositKas = kas.find(k=>k.orderId===o.id && k.source==='deposit');
+  const cashKas = kas.find(k=>k.orderId===o.id && k.source==='cash');
+  const alreadyFromDeposit = o.depositUsed||0;
+  const remainingDue = Math.max(0, o.total - alreadyFromDeposit);
   if(status==='paid'){
     const method = document.getElementById('mp-method').value;
+    if(method==='deposit'){
+      const cust = o.phone ? custByPhone(o.phone) : null;
+      if(!cust || (cust.balance||0) < remainingDue){
+        toast('⚠️ Saldo deposit pelanggan tidak cukup untuk melunasi sisa tagihan ini','⚠️');
+        return;
+      }
+      if(remainingDue>0){
+        cust.balance = Math.round(cust.balance - remainingDue);
+        cust.depositLedger = cust.depositLedger || [];
+        cust.depositLedger.push({id:uid('dep_'), date:Date.now(), type:'used', amount:remainingDue, note:'Pelunasan pesanan '+o.code, orderId:o.id});
+        DB.set('customers', customers);
+      }
+      o.depositUsed = o.total; // fully covered by deposit now
+      if(depositKas) depositKas.amount = o.depositUsed;
+      else kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:o.depositUsed, desc:'Pesanan '+o.code+' (Saldo Deposit)', orderId:o.id, source:'deposit'});
+      if(cashKas) kas = kas.filter(k=>k!==cashKas); // no separate cash portion needed anymore
+    } else {
+      // Paying the remaining (non-deposit) portion via cash/transfer/qris.
+      const desc = 'Pesanan '+o.code+' ('+(PAYMENT_METHODS.find(p=>p.k===method)||{}).l+')';
+      if(cashKas){ if(remainingDue>0){ cashKas.amount = remainingDue; cashKas.desc = desc; } else { kas = kas.filter(k=>k!==cashKas); } }
+      else if(remainingDue>0){ kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:remainingDue, desc, orderId:o.id, source:'cash'}); }
+    }
     o.paid = true; o.paymentMethod = method;
-    const desc = 'Pesanan '+o.code+' ('+(PAYMENT_METHODS.find(p=>p.k===method)||{}).l+')';
-    if(existingKas){ existingKas.amount = o.total; existingKas.desc = desc; }
-    else{ kas.push({id:uid('kas_'), date:todayStr(), type:'in', category:'Pembayaran Pesanan', amount:o.total, desc, orderId:o.id}); }
   } else {
     o.paid = false; o.paymentMethod = null;
-    if(existingKas) kas = kas.filter(k=>k.id!==existingKas.id);
+    // Unmarking "lunas" only reverts the manual cash/transfer/qris portion.
+    // Any deposit already spent on this order stays spent (and stays
+    // recorded as revenue) — reversing that would mean refunding the
+    // customer's deposit balance, which isn't assumed here.
+    if(cashKas) kas = kas.filter(k=>k!==cashKas);
   }
   DB.set('orders', orders); DB.set('kas', kas);
   syncOrderToCloud(o);
@@ -2943,37 +3118,43 @@ function scanFromGalleryFile(file){
   const img = new Image();
   const url = URL.createObjectURL(file);
   img.onload = () => {
-    // Yield one frame first so the "Membaca gambar..." toast actually
-    // paints before the heavy synchronous decode work below blocks the
-    // main thread — on a full-resolution camera photo (often 3000-4000px+)
-    // this could otherwise look "stuck" for several seconds.
     requestAnimationFrame(() => setTimeout(() => {
       URL.revokeObjectURL(url);
-      try{
-        // Downscale before scanning — jsQR doesn't need full camera
-        // resolution to read a QR code, and running it on a raw 12MP+
-        // image was slow enough on typical phones to effectively hang or
-        // silently fail. Capping the longest side speeds this up a lot
-        // without hurting detection.
-        const MAX_SIDE = 1400;
-        const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-        const w = Math.max(1, Math.round(img.naturalWidth * scale));
-        const h = Math.max(1, Math.round(img.naturalHeight * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d', {willReadFrequently:true});
-        ctx.drawImage(img, 0, 0, w, h);
-        const data = ctx.getImageData(0, 0, w, h);
-        const code = jsQR(data.data, data.width, data.height, {inversionAttempts:'attemptBoth'});
-        if(code && code.data){ processScannedCodeAuto(extractCode(code.data)); }
-        else toast('QR code tidak terbaca dari gambar ini — coba foto yang lebih fokus, terang, dan QR terlihat penuh','⚠️');
-      }catch(e){
-        toast('Gagal memproses gambar ini','⚠️');
-      }
+      if(!img.naturalWidth){ toast('Gambar tidak valid / rusak','⚠️'); return; }
+      tryDecodeQR(img, 0);
     }, 30));
   };
-  img.onerror = () => { URL.revokeObjectURL(url); toast('Gagal membaca file gambar','⚠️'); };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Gagal membaca file gambar — format mungkin tidak didukung (coba JPG/PNG)','⚠️'); };
   img.src = url;
+}
+// Progressive attempts: start small & fast (covers most cases — screenshots,
+// nota images, well-framed close-up photos), then retry at higher
+// resolution only if needed (covers a QR that's a small part of a bigger
+// photo, e.g. a printed nota photographed from normal distance). This
+// balances speed against accuracy instead of picking one fixed size.
+const QR_SCAN_STAGES = [900, 1800, 2800];
+function tryDecodeQR(img, stageIdx){
+  const MAX_SIDE = QR_SCAN_STAGES[stageIdx];
+  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+  let code = null;
+  try{
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', {willReadFrequently:true});
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h);
+    code = jsQR(data.data, data.width, data.height, {inversionAttempts:'attemptBoth'});
+  }catch(e){ /* fall through to next stage / final failure below */ }
+  if(code && code.data){ processScannedCodeAuto(extractCode(code.data)); return; }
+  const next = stageIdx+1;
+  if(next < QR_SCAN_STAGES.length && (img.naturalWidth>MAX_SIDE || img.naturalHeight>MAX_SIDE)){
+    if(next===QR_SCAN_STAGES.length-1) toast('Belum ketemu, mencoba resolusi lebih tinggi...', '⏳');
+    setTimeout(()=>tryDecodeQR(img, next), 20);
+  } else {
+    toast('QR code tidak terbaca dari gambar ini — coba foto yang lebih fokus, terang, dan QR terlihat penuh','⚠️');
+  }
 }
 
 /* =========================================================================
@@ -3458,6 +3639,7 @@ function notaHTML(o, opts){
         <span>TOTAL</span><span class="mono">${rupiah(o.total)}</span>
       </div>
       <div style="text-align:center;margin-top:6px;font-size:${S.base-1.5}px;color:${o.paid?'#15803D':'#B45309'};font-weight:700;">${o.paid?'LUNAS':'BELUM LUNAS'}</div>
+      ${o.depositUsed?`<div style="text-align:center;font-size:${S.base-1.5}px;color:#7C5A1E;margin-top:4px;">💰 Rp${o.depositUsed.toLocaleString('id-ID')} dari saldo deposit${!o.paid?' · Sisa: '+rupiah(o.total-o.depositUsed):''}</div>`:''}
       ${o.notes?`<div style="font-size:${S.base-1.5}px;color:#666;margin-top:8px;">Catatan: ${o.notes}</div>`:''}
       ${o.sortNote?`<div style="font-size:${S.base-1.5}px;color:#666;margin-top:6px;border-top:1px dashed #ccc;padding-top:6px;"><b>Rincian Sortir:</b> ${o.sortNote}</div>`:''}
       <div style="text-align:center;margin-top:${compact?'8px':'14px'};" id="nota-qr"></div>
