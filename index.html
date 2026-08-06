@@ -219,6 +219,7 @@ tr:hover td{background:var(--surface-alt);}
 .chip{padding:8px 14px;border-radius:9px;border:1px solid var(--line);font-size:13px;font-weight:600;background:var(--surface);}
 .chip.active{background:var(--navy);border-color:var(--navy);color:#fff;}
 .chip .sub{display:block;font-size:10.5px;font-weight:500;opacity:.75;margin-top:1px;}
+.chip-sm{padding:6px 11px;border-radius:8px;font-size:12px;font-weight:600;}
 
 .gate{position:fixed;inset:0;z-index:300;overflow-y:auto;min-height:100vh;display:flex;align-items:center;justify-content:center;background:
   radial-gradient(1100px 600px at 15% -10%, #1E2748 0%, transparent 60%),
@@ -2419,8 +2420,12 @@ function openNewOrder(prefill){
         </div>
         <div class="field">
           <label>+ Layanan/Item Tambahan (opsional) — selimut, sepatu, sprei, dll</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <select id="o-extra-svc" style="flex:2;min-width:150px;">${serviceGroups().map(g=>`<optgroup label="${g.groupName}">${g.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99)).map(s=>`<option value="${s.id}">${s.tierLabel?g.groupName+' — '+s.tierLabel:s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</optgroup>`).join('')}</select>
+          <div class="chip-select" id="o-extra-group">
+            ${serviceGroups().map((g,i)=>`<button type="button" class="chip chip-sm ${i===0?'active':''}" data-group="${g.groupName.replace(/"/g,'&quot;')}" onclick="selectExtraGroupChip('o',this)">${g.groupName}${g.tiers.length===1?` · ${rupiah(g.tiers[0].price)}`:''}</button>`).join('') || '<span style="font-size:12px;color:var(--muted);">Belum ada layanan lain — tambahkan di menu Layanan &amp; Harga</span>'}
+          </div>
+          <div class="chip-select" id="o-extra-tier" style="margin-top:6px;"></div>
+          <div id="o-extra-selected" style="display:none;"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
             <input id="o-extra-qty" type="number" step="0.1" min="0.1" value="1" style="width:80px;" placeholder="Qty">
             <button type="button" class="btn btn-sm" onclick="addExtraItem('o')">+ Tambah</button>
           </div>
@@ -2451,6 +2456,8 @@ function openNewOrder(prefill){
   renderExtraList('o');
   const firstGroupBtn = document.querySelector('#o-service-group .chip');
   if(firstGroupBtn) selectServiceGroupChip('o', firstGroupBtn);
+  const firstExtraGroupBtn = document.querySelector('#o-extra-group .chip');
+  if(firstExtraGroupBtn) selectExtraGroupChip('o', firstExtraGroupBtn);
   calcOrderTotal();
 }
 function filterCustomerSuggest(q){
@@ -2517,12 +2524,37 @@ function selectServiceTierChip(prefix, btn){
   if(priceInput) priceInput.value = btn.dataset.price;
   if(prefix==='o') calcOrderTotal(); else if(typeof calcEditOrderTotal==='function') calcEditOrderTotal();
 }
+function selectExtraGroupChip(prefix, btn){
+  btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  const group = serviceGroups().find(g=>g.groupName===btn.dataset.group);
+  const tierBox = document.getElementById(prefix+'-extra-tier');
+  const selBox = document.getElementById(prefix+'-extra-selected');
+  if(!group){ if(tierBox) tierBox.innerHTML=''; if(selBox) selBox.innerHTML=''; return; }
+  const sorted = group.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99));
+  if(sorted.length<=1){
+    if(tierBox) tierBox.innerHTML='';
+    if(selBox) selBox.innerHTML = `<button type="button" class="chip active" data-id="${sorted[0].id}"></button>`;
+  } else {
+    if(tierBox) tierBox.innerHTML = sorted.map((s,i)=>`<button type="button" class="chip chip-sm ${i===0?'active':''}" data-id="${s.id}" onclick="selectExtraTierChip('${prefix}',this)">${s.tierLabel||s.name} · ${rupiah(s.price)}</button>`).join('');
+    if(selBox) selBox.innerHTML = `<button type="button" class="chip active" data-id="${sorted[0].id}"></button>`;
+  }
+}
+function selectExtraTierChip(prefix, btn){
+  btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  const selBox = document.getElementById(prefix+'-extra-selected');
+  if(selBox) selBox.innerHTML = `<button type="button" class="chip active" data-id="${btn.dataset.id}"></button>`;
+}
 function addExtraItem(prefix){
-  const sel = document.getElementById(prefix+'-extra-svc');
-  const svc = svcById(sel.value); if(!svc) return;
+  const selBox = document.getElementById(prefix+'-extra-selected');
+  const activeChip = selBox ? selBox.querySelector('.chip.active') : null;
+  const svc = activeChip ? svcById(activeChip.dataset.id) : null;
+  if(!svc){ toast('Pilih layanan tambahannya dulu','⚠️'); return; }
   const qty = +document.getElementById(prefix+'-extra-qty').value || 0;
   if(qty<=0){ toast('Isi jumlah/qty dulu','⚠️'); return; }
-  const item = {id:uid('item_'), serviceId:svc.id, serviceName:svc.name, unit:svc.unitType==='pcs'?'pcs':'kg', qty, price:svc.price, subtotal:qty*svc.price};
+  const displayName = svc.tierLabel ? svc.groupName+' — '+svc.tierLabel : svc.name;
+  const item = {id:uid('item_'), serviceId:svc.id, serviceName:displayName, unit:svc.unitType==='pcs'?'pcs':'kg', qty, price:svc.price, subtotal:qty*svc.price};
   if(prefix==='o') newOrderExtras.push(item); else editOrderExtras.push(item);
   renderExtraList(prefix);
   prefix==='o' ? calcOrderTotal() : calcEditOrderTotal();
@@ -2946,8 +2978,12 @@ function editOrderDetails(id){
       </div>
       <div class="field">
         <label>+ Layanan/Item Tambahan (opsional) — selimut, sepatu, sprei, dll</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <select id="eo-extra-svc" style="flex:2;min-width:150px;">${serviceGroups().map(g=>`<optgroup label="${g.groupName}">${g.tiers.slice().sort((a,b)=>(a.durationDays||99)-(b.durationDays||99)).map(s=>`<option value="${s.id}">${s.tierLabel?g.groupName+' — '+s.tierLabel:s.name} (${rupiah(s.price)}/${s.unitType==='pcs'?'item':'kg'})</option>`).join('')}</optgroup>`).join('')}</select>
+        <div class="chip-select" id="eo-extra-group">
+          ${serviceGroups().map((g,i)=>`<button type="button" class="chip chip-sm ${i===0?'active':''}" data-group="${g.groupName.replace(/"/g,'&quot;')}" onclick="selectExtraGroupChip('eo',this)">${g.groupName}${g.tiers.length===1?` · ${rupiah(g.tiers[0].price)}`:''}</button>`).join('') || '<span style="font-size:12px;color:var(--muted);">Belum ada layanan lain — tambahkan di menu Layanan &amp; Harga</span>'}
+        </div>
+        <div class="chip-select" id="eo-extra-tier" style="margin-top:6px;"></div>
+        <div id="eo-extra-selected" style="display:none;"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
           <input id="eo-extra-qty" type="number" step="0.1" min="0.1" value="1" style="width:80px;" placeholder="Qty">
           <button type="button" class="btn btn-sm" onclick="addExtraItem('eo')">+ Tambah</button>
         </div>
@@ -2973,6 +3009,8 @@ function editOrderDetails(id){
   renderExtraList('eo');
   const eoGroupActive = document.querySelector('#eo-service-group .chip.active') || document.querySelector('#eo-service-group .chip');
   if(eoGroupActive) selectServiceGroupChip('eo', eoGroupActive);
+  const firstEoExtraGroupBtn = document.querySelector('#eo-extra-group .chip');
+  if(firstEoExtraGroupBtn) selectExtraGroupChip('eo', firstEoExtraGroupBtn);
   // Preserve the order's actual saved price/tier selection rather than
   // defaulting to the group's first tier (renderServiceTierChips resets
   // price to the first tier — override right after with the real values).
