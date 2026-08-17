@@ -1452,7 +1452,28 @@ function serviceGroups(unitType){
     if(!map[gname]){ map[gname] = {groupName:gname, unitType:s.unitType, tiers:[]}; order.push(gname); }
     map[gname].tiers.push(s);
   });
+  // Apply the admin's saved group ordering (from Layanan & Harga), if any —
+  // groups not yet ranked (e.g. newly added) fall back to their natural
+  // insertion order, appended after the ranked ones.
+  const savedOrder = (SETTINGS && SETTINGS.serviceGroupOrder) || [];
+  order.sort((a,b)=>{
+    const ia = savedOrder.indexOf(a), ib = savedOrder.indexOf(b);
+    if(ia===-1 && ib===-1) return 0;
+    if(ia===-1) return 1;
+    if(ib===-1) return -1;
+    return ia-ib;
+  });
   return order.map(g=>map[g]);
+}
+function moveServiceGroup(groupName, dir){
+  const groups = serviceGroups().map(g=>g.groupName);
+  const idx = groups.indexOf(groupName);
+  const swapIdx = idx + dir;
+  if(swapIdx<0 || swapIdx>=groups.length) return;
+  [groups[idx], groups[swapIdx]] = [groups[swapIdx], groups[idx]];
+  SETTINGS.serviceGroupOrder = groups;
+  DB.set('settings', SETTINGS);
+  refreshServiceView();
 }
 function orderDeadline(o){
   const days = (o.estDays!=null) ? o.estDays : svcDurationDays(svcById(o.serviceId));
@@ -4453,9 +4474,9 @@ function renderServices(){
         <button class="btn btn-sm btn-primary" onclick="editServiceGroup(null)">${ICONS.plus} Tambah Layanan (Grup Durasi)</button>
       </div>
     </div>
-    <p style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;">💡 "Tambah Layanan" bikin satu layanan dengan sampai 4 pilihan kecepatan sekaligus (Reguler/Reguler+/Ekspres/Ekspres+) — lebih ringkas saat bikin pesanan. "Item Sederhana" untuk item yang cuma butuh satu harga saja (tanpa pilihan kecepatan).</p>
+    <p style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;">💡 "Tambah Layanan" bikin satu layanan dengan sampai 4 pilihan kecepatan sekaligus (Reguler/Reguler+/Ekspres/Ekspres+) — lebih ringkas saat bikin pesanan. "Item Sederhana" untuk item yang cuma butuh satu harga saja (tanpa pilihan kecepatan). Pakai ▲▼ untuk atur urutan tampil layanan di form pesanan.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>Nama Layanan</th><th>Satuan</th><th>Pilihan Kecepatan &amp; Harga</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Nama Layanan</th><th>Satuan</th><th>Pilihan Kecepatan &amp; Harga</th><th></th></tr></thead>
       <tbody>
         ${groups.map((g,gi)=>{
           const isGrouped = g.tiers.length>1 || g.tiers[0].tierKey;
@@ -4464,6 +4485,10 @@ function renderServices(){
           const priceSummary = minP===maxP ? rupiah(minP) : rupiah(minP)+' – '+rupiah(maxP);
           return `
           <tr>
+            <td style="white-space:nowrap;">
+              <button type="button" onclick="moveServiceGroup('${g.groupName.replace(/'/g,"\\'")}',-1)" ${gi===0?'disabled':''} style="background:none;border:1px solid var(--line);border-radius:5px;width:22px;height:22px;line-height:1;cursor:pointer;font-size:11px;">▲</button>
+              <button type="button" onclick="moveServiceGroup('${g.groupName.replace(/'/g,"\\'")}',1)" ${gi===groups.length-1?'disabled':''} style="background:none;border:1px solid var(--line);border-radius:5px;width:22px;height:22px;line-height:1;cursor:pointer;font-size:11px;">▼</button>
+            </td>
             <td style="font-weight:600;">${g.groupName}${g.tiers[0].note?`<div style="font-size:11px;color:var(--muted);font-weight:400;">${g.tiers[0].note}</div>`:''}</td>
             <td>${g.unitType==='pcs'?'<span class="badge b-teal">Satuan</span>':'<span class="badge b-gray">Kiloan</span>'}</td>
             <td>
@@ -4477,7 +4502,7 @@ function renderServices(){
               <button class="btn btn-sm btn-ghost" onclick="${isGrouped?`deleteServiceGroup('${g.groupName.replace(/'/g,"\\'")}')`:`deleteService('${g.tiers[0].id}')`}">${ICONS.trash}</button>
             </td>
           </tr>`;
-        }).join('') || '<tr class="empty-row"><td colspan="4">Belum ada jenis layanan</td></tr>'}
+        }).join('') || '<tr class="empty-row"><td colspan="5">Belum ada jenis layanan</td></tr>'}
       </tbody>
     </table></div>
     <div class="card" style="margin-top:16px;background:var(--surface-alt);border:none;">
